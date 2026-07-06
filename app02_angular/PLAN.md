@@ -1,7 +1,7 @@
 # ThreatView 2026 — Application Development Plan
 
-**Version:** 1.0  
-**Date:** 2026-07-07  
+**Wersja:** 2.0  
+**Data:** 2026-07-07  
 **Status:** Living document — updated after each sprint planning session
 
 ---
@@ -9,13 +9,13 @@
 ## 1. Project Overview
 
 **Name:** ThreatView 2026  
-**Purpose:** An interactive security reference and learning platform that maps security threats, vulnerabilities, and mitigations across six major frameworks — OWASP Web Top 10 (2021), OWASP LLM Top 10 (2025), OWASP API Security Top 10, OWASP Agentic AI Top 10 (2026), MITRE ATLAS (AI/ML adversarial techniques), and CompTIA Security+ SY0-701 / SecAI+ — and presents each threat with working sample code countermeasures in five languages: Python, Java (Spring Boot), Go, Scala, and Lua.
+**Purpose:** An interactive security reference and learning platform that maps threats, vulnerabilities, and mitigations across six major frameworks — OWASP Web Top 10 (2021), OWASP LLM Top 10 (2025), OWASP API Security Top 10, OWASP Agentic AI Top 10 (2026), MITRE ATLAS (adversarial AI/ML techniques), and CompTIA Security+ SY0-701 / SecAI+ 2026. Each threat is presented with countermeasure sample code in five languages: Python, Java (Spring Boot), Go, Scala, and Lua.
 
-**Cornucopia extension:** The platform additionally covers the full OWASP Cornucopia card catalogue — Website App Edition v3.0, Companion Edition v1.0 (LLM, AAI, FRE, DVO, BOT, CLD suits), Mobile App Edition v1.1, Microsoft STRIDE Elevation of Privilege v5.0, and Elevation of MLSec v1.0 — giving practitioners an interactive, card-based threat modeling reference.
+**Cornucopia extension:** The platform covers the full OWASP Cornucopia card catalogue — Website App Edition v3.0, Companion Edition v1.0 (LLM, AAI, FRE, DVO, BOT, CLD suits), Mobile App Edition v1.1, Microsoft STRIDE Elevation of Privilege v5.0, and Elevation of MLSec v1.0 — giving practitioners an interactive card-based threat-modeling reference aligned with the core framework content.
 
-**UI languages:** Polish (default) and English — switch is persisted in `localStorage` under key `tv_locale`.
+**UI languages:** Polish (default) and English — switch persisted in `localStorage` under key `tv_locale`.
 
-**Key differentiator from SecureVision (app01):** ThreatView is built with **Angular 18 standalone components** and **Angular Material 18 (MDC-based)**, offering a Material Design UI, Angular-native state management with Signals and NgRx, and Angular's built-in security primitives (DomSanitizer, strict mode).
+**Key differentiator from SecureVision (app01_react):** ThreatView uses **Angular 18 standalone components** + **Angular Material 18 (MDC-based)** for the frontend, offering Material Design, Angular-native reactivity via Signals and NgRx, Angular's built-in security primitives (`DomSanitizer`, strict mode, `strictTemplates`), and `ngx-translate` for runtime i18n without a build step.
 
 ---
 
@@ -26,7 +26,6 @@
 |---|---|---|
 | Runtime | Java | 21 LTS |
 | Framework | Spring Boot | 3.3.x |
-| API style | REST (JSON) | — |
 | Security | Spring Security 6 | JWT / OAuth2 |
 | Persistence | PostgreSQL 16 | Spring Data JPA |
 | Cache | Redis 7 | Spring Cache |
@@ -43,14 +42,14 @@
 |---|---|---|
 | Framework | Angular | 18.x (standalone components) |
 | UI Library | Angular Material | 18.x (MDC-based) |
-| Language | TypeScript | 5.x (strict mode) |
+| Language | TypeScript | 5.x (`strict: true`) |
 | Build | Angular CLI | 18.x |
 | State | Angular Signals + NgRx Signals | — |
 | Router | Angular Router | 17+ (typed routes) |
 | i18n | ngx-translate | 15.x |
 | Charts | ngx-echarts (Apache ECharts) | — |
 | SVG / Diagrams | D3.js v7 | — |
-| Syntax highlight | Prism.js | (lazy-loaded per language) |
+| Syntax highlight | Prism.js | lazy-loaded per language |
 | HTTP | Angular HttpClient | — |
 | Forms | Angular Reactive Forms | — |
 | Testing unit | Jest 29 + Angular Testing Library | — |
@@ -92,34 +91,64 @@ Browser (Angular SPA)
    │                       └── AdminController           ← JWT-gated CRUD
    │
    └── /*         ─────► Angular SPA bundle (ng build)
-                           ├── AppShellComponent (mat-sidenav layout)
-                           ├── Features (lazy-loaded modules)
-                           │   ├── DashboardComponent
-                           │   ├── FrameworkListComponent / FrameworkDetailComponent
-                           │   ├── ThreatBrowserComponent / ThreatDetailComponent
-                           │   ├── CardSuit feature components (7 pages)
-                           │   ├── Matrix feature components (4 pages)
-                           │   ├── StrideHeatmapComponent
-                           │   ├── SearchResultsComponent
-                           │   └── AboutComponent
-                           └── Shared Components
-                               ├── ThreatCardComponent
-                               ├── CornucopiaCardComponent
-                               ├── CodeSamplePanelComponent (mat-tab-group)
-                               ├── BotWarningDialogComponent (MatDialog)
-                               ├── StrideHeatmapComponent
-                               ├── MatrixTableComponent
-                               └── LanguageToggleComponent (mat-button-toggle-group)
+                           ├── AppShellComponent (mat-sidenav)
+                           ├── Feature modules (lazy-loaded via loadComponent)
+                           └── Shared: ThreatCardComponent, CornucopiaCardComponent,
+                                       CodeSamplePanelComponent, BotWarningDialogComponent,
+                                       LanguageToggleComponent, StrideHeatmapComponent
 
 PostgreSQL 16  ◄── Spring Data JPA
-Redis 7        ◄── Spring Cache
+Redis 7        ◄── Spring Cache (heatmap SVG, matrix JSON — TTL 5 min)
 ```
 
 ---
 
-## 4. Data Model
+## 4. Architecture Design Decisions
 
-### 4.1 Framework
+### D-01 — Angular strict mode + strictTemplates
+`strict: true` and `strictTemplates: true` in `tsconfig.json`. Eliminates entire classes of XSS-prone patterns (unchecked `any` casts, `[innerHTML]` without sanitizer call) at compile time. Enforced by `ng build` in CI.
+
+### D-02 — Angular DomSanitizer as the only HTML rendering path
+All card descriptions (`descriptionPl`, `descriptionEn`) rendered via `DomSanitizer.sanitize(SecurityContext.HTML, value)`. `bypassSecurityTrustHtml` is **forbidden** on user-sourced content — enforced by ESLint rule `no-bypass-security`.
+
+### D-03 — Spring Security 6 stateless (SESSIONLESS)
+JWT-only, no server-side sessions → no CSRF token needed on REST endpoints. Stateless simplifies horizontal scaling and removes session-fixation attack surface.
+
+### D-04 — Parameterized queries only (no string concatenation)
+All JPA queries use named parameters (`:param`) or `Specification<T>` predicate builder. String concatenation in `@Query` is a compile-time lint error (SpotBugs rule SPRING_JDBC).
+
+### D-05 — ContentIntegrityVerifier: fail-secure startup
+`@PostConstruct` bean reads `data/hashes.json` and verifies SHA-256 of every YAML card file. On any mismatch the application **refuses to start** (`ContentIntegrityException`). Prevents tampered card content from entering production.
+
+### D-06 — YAML card files immutable at runtime
+Loaded once at startup by `YamlCardLoader`, stored in `CornucopiaCard` entities. No runtime re-read. File-system access after startup is blocked by Spring profile (`card.file.readonly=true`).
+
+### D-07 — All OWASP/MASVS/MITRE reference IDs validated via server-side allowlists
+`OwaspRefValidator`, `MitreAtlasRefValidator`, `MavsRefValidator`, `CicdSecRefValidator`, `OatRefValidator` — each loads its allowlist from JSON at startup. Any unknown ID rejected with HTTP 422. Prevents content-poisoning via admin CRUD.
+
+### D-08 — Rate limiting: Bucket4j 60 req/min per IP on card suit endpoints
+Applied on all `/api/v1/threats?suit=*` endpoints. Returns HTTP 429 with `Retry-After` header. Loki alert `SEC-007` fires on > 5 rejections/min from single IP. Reflects D-11 dogfooding.
+
+### D-09 — Angular OnPush change detection throughout
+All feature and shared components use `ChangeDetectionStrategy.OnPush`. Reduces re-render attack surface (XSS via unexpected re-render), improves performance (< 200 ms p95 for list views), enables signal-based reactive patterns.
+
+### D-10 — ngx-translate with plain-text keys only (no HTML in i18n values)
+All `pl.json` / `en.json` values are plain text. HTML interpolation in translations is disabled. i18n key parity verified by `i18n-keys-parity.spec.ts` in CI — build fails on missing keys.
+
+### D-11 — Dogfooding: app teaching BOT attacks implements its own BOT defenses
+The platform that teaches OAT-011 scraping must itself be protected by rate limiting (D-08) and `BotWarningDialogComponent`. Demonstrated to users as a live example.
+
+### D-12 — AAI agent chain diagrams rendered server-side as SVG
+Agentic AI flow diagrams generated by backend (D3.js/Batik) and returned as static SVG. No client-side JS evaluation of diagram data. SVG `<script>` tags are stripped by `DomSanitizer` anyway, but server-side generation is the primary defense.
+
+### D-13 — DVO code examples use pseudocode only — never real working CI/CD exploits
+DevOps card (DVO) examples showing pipeline injection techniques use annotated pseudocode. Real pipeline credentials never appear in content. `CI_EXPLOIT_PATTERN` grep check in `yaml-content-integrity` CI job.
+
+---
+
+## 5. Data Model
+
+### 5.1 Framework
 ```
 Framework {
   id:           UUID
@@ -128,17 +157,17 @@ Framework {
                          //  "CORNUCOPIA_WEBAPP", "CORNUCOPIA_COMPANION",
                          //  "CORNUCOPIA_MOBILE", "STRIDE_EOP", "MLSEC"
   name:         String
-  version:      String
+  version:      String   // "2025", "v3.0", "5.0"
   description:  String
   referenceUrl: String
 }
 ```
 
-### 4.2 Threat
+### 5.2 Threat
 ```
 Threat {
   id:            UUID
-  frameworkId:   UUID
+  frameworkId:   UUID     // FK → Framework
   code:          String   // "LLM01:2025", "A01:2021", "AML.T0051"
   title:         String
   severity:      Enum     // CRITICAL, HIGH, MEDIUM, LOW, INFO
@@ -146,17 +175,17 @@ Threat {
   description:   String
   attackVector:  String
   attackSurface: String
-  stride:        Set<Enum> // S, T, R, I, D, E
+  stride:        Set<Enum> // S, T, R, I, D, E  (null for non-STRIDE items)
   cveReferences: List<String>
   tags:          List<String>
 }
 ```
 
-### 4.3 ThreatTranslation
+### 5.3 ThreatTranslation  *(i18n — US-11)*
 ```
 ThreatTranslation {
   id:           UUID
-  threatId:     UUID
+  threatId:     UUID     // FK → Threat
   locale:       String   // "pl", "en"
   title:        String
   description:  String
@@ -165,61 +194,61 @@ ThreatTranslation {
 }
 ```
 
-### 4.4 CornucopiaCard
+### 5.4 CornucopiaCard  *(Cornucopia card catalogue — US-12–US-18)*
 ```
 CornucopiaCard {
   id:            UUID
   cardId:        String   // "FRE4", "LLMX", "EPK", "EDRK", "NSX"
   suitCode:      String   // "FRE", "LLM", "AAI", "DVO", "BOT", "CLD",
                           //  "VE", "AT", "SM", "AZ", "CR",
-                          //  "PC", "AA", "NS", "RS", "CRM",
+                          //  "PC", "AA", "NS", "RS", "CRM", "CM",
                           //  "SP", "TA", "RE", "ID", "DS", "EP",
                           //  "EMR", "EIR", "EOR", "EDR"
-  suitName:      String
+  suitName:      String   // "Frontend", "Large Language Models", "Agentic AI"…
   edition:       String   // "companion", "webapp", "mobileapp", "eop", "mlsec"
   value:         String   // "2"–"10", "J", "Q", "K", "A"
   isCritical:    Boolean  // true for J, Q, K
-  descriptionEn: String
-  descriptionPl: String
-  owaspRefs:     List<String>
-  mitreRefs:     List<String>
-  mavsRefs:      List<String>
-  cicdSecRefs:   List<String>
-  oatRefs:       List<String>
-  agentAiRefs:   List<String>
-  contentHash:   String   // SHA-256 of descriptionEn
+  descriptionEn: String   // original English from YAML
+  descriptionPl: String   // Polish translation
+  owaspRefs:     List<String>  // ["A03:2021", "Client-Side C01"]
+  mitreRefs:     List<String>  // ["MITRE ATLAS T0014"]
+  mavsRefs:      List<String>  // ["MASVS-NETWORK-2"]
+  cicdSecRefs:   List<String>  // ["CICD-SEC-03"]
+  oatRefs:       List<String>  // ["OAT-011"]
+  agentAiRefs:   List<String>  // ["AgentAI07"]
+  contentHash:   String   // SHA-256 of descriptionEn — integrity field
 }
 ```
 
-### 4.5 Mitigation
+### 5.5 Mitigation
 ```
 Mitigation {
   id:                   UUID
-  threatId:             UUID
+  threatId:             UUID    // FK → Threat (or CornucopiaCard via cardId)
   title:                String
   description:          String
-  mitigationType:       Enum  // PREVENTIVE, DETECTIVE, CORRECTIVE, COMPENSATING
-  implementationEffort: Enum  // LOW, MEDIUM, HIGH
-  effectiveness:        Enum  // PARTIAL, SIGNIFICANT, FULL
+  mitigationType:       Enum    // PREVENTIVE, DETECTIVE, CORRECTIVE, COMPENSATING
+  implementationEffort: Enum    // LOW, MEDIUM, HIGH
+  effectiveness:        Enum    // PARTIAL, SIGNIFICANT, FULL
 }
 ```
 
-### 4.6 CodeSample
+### 5.6 CodeSample
 ```
 CodeSample {
   id:            UUID
-  mitigationId:  UUID
+  mitigationId:  UUID    // FK → Mitigation
   language:      Enum    // PYTHON, JAVA, GO, SCALA, LUA
   sampleType:    Enum    // ATTACK_DEMO, DEFENSE
   title:         String
   description:   String
-  codeSnippet:   String
+  codeSnippet:   String  // full educational snippet
   frameworkHint: String  // "Spring Boot 3.3", "FastAPI 0.110", "Gin 1.9", "Akka HTTP", "OpenResty"
-  version:       String
+  version:       String  // language/framework version annotation
 }
 ```
 
-### 4.7 CrossReference
+### 5.7 CrossReference
 ```
 CrossReference {
   id:               UUID
@@ -230,11 +259,11 @@ CrossReference {
 }
 ```
 
-### 4.8 ContentHash
+### 5.8 ContentHash  *(YAML integrity — SSDLC Phase 6)*
 ```
 ContentHash {
   id:         UUID
-  fileName:   String
+  fileName:   String   // "companion-llm-cards-1.0-en.yaml"
   sha256Hash: String
   verifiedAt: Instant
   isValid:    Boolean
@@ -243,126 +272,142 @@ ContentHash {
 
 ---
 
-## 5. Development Phases
+## 6. Development Phases
 
 ### Phase 1 — Foundation (Sprints 1–2, Weeks 1–4)
-Pokrycie: US-01, US-02, US-03
+Pokrycie: US-01
 
-- [ ] Scaffold Angular 18 SPA: `ng new threatview --standalone --routing --style=scss`
-- [ ] Dodaj Angular Material 18: `ng add @angular/material`
-- [ ] Scaffold Spring Boot 3.3 backend: Maven, Java 21, Spring Web, Security, Data JPA
+- [ ] `ng new threatview --standalone --routing --style=scss`
+- [ ] `ng add @angular/material` — theme: indigo-amber, typography, animations
+- [ ] Spring Boot 3.3 skeleton: Web, Security, Data JPA, Actuator, SpringDoc
 - [ ] Docker Compose: PostgreSQL 16 + Redis 7 + backend + frontend + Nginx
-- [ ] Schematy bazy danych + migracje Flyway V1–V8 (entities 4.1–4.7)
-- [ ] Seedowanie danych: OWASP Web Top 10, LLM Top 10, MITRE ATLAS, CompTIA SecAI+
-- [ ] REST API: `GET /api/v1/frameworks`, `GET /api/v1/threats` z paginacją
-- [ ] Spring Security: JWT auth (rola ADMIN do CRUD)
-- [ ] SpringDoc OpenAPI 3 pod `/swagger-ui.html`
-- [ ] Angular: `AppShellComponent` z `mat-sidenav` + `mat-toolbar` + `LanguageToggleComponent`
-- [ ] Angular: `DashboardComponent` — statystyki frameworków, szybkie wyszukiwanie
+- [ ] Flyway migracje V1–V8 (entities Framework, Threat, Mitigation, CodeSample, CrossReference, ThreatTranslation, CornucopiaCard, ContentHash)
+- [ ] Seedowanie danych: OWASP Web Top 10, LLM Top 10 2025, MITRE ATLAS, CompTIA SecAI+
+- [ ] `GET /api/v1/frameworks`, `GET /api/v1/threats` z paginacją
+- [ ] Spring Security 6: stateless JWT (SESSIONLESS), rola ADMIN do CRUD
+- [ ] `AppShellComponent` — `mat-sidenav-container` + `mat-toolbar` + `LanguageToggleComponent`
+- [ ] `DashboardComponent` — mat-card statystyki, ShortSearchBarComponent
+
+**Security checkpoint:** D-03 (stateless JWT) skonfigurowane; brak stack trace w odpowiedziach 5xx.
 
 ### Phase 2 — Core API + Angular Threat Browser (Sprints 3–4, Weeks 5–8)
-Pokrycie: US-02, US-03, US-04, US-05
+Pokrycie: US-02, US-03, US-04
 
-- [ ] `GET /api/v1/threats` z filtrami: framework, severity, STRIDE, category, tag, q
+- [ ] `GET /api/v1/threats` — filtry: frameworkCode, severity, stride, category, tag, q, suit, owaspRef, mitreRef
 - [ ] `GET /api/v1/threats/{id}` ze zagnieżdżonymi mitigacjami i próbkami kodu
 - [ ] `GET /api/v1/cross-references` — tabela mapowania między frameworkami
-- [ ] Angular: `ThreatBrowserComponent` z `mat-table` + `mat-paginator` + panel filtrów (`mat-select`, `mat-chip-listbox`)
-- [ ] Angular: `ThreatDetailComponent` z `mat-tab-group`: Przegląd | Mitigacje | Kod | Powiązania
-- [ ] Angular: `ThreatCardComponent` — mat-card z STRIDE badge chips
-- [ ] Angular: `MatrixComponent` — tabela mapowania OWASP ↔ MITRE ATLAS ↔ CompTIA
-- [ ] Angular: `FrameworkListComponent` + `FrameworkDetailComponent`
-- [ ] STRIDE badge (mat-chip) + legenda wizualna (mat-tooltip)
+- [ ] `ThreatBrowserComponent` — `mat-table` + `mat-paginator` + panel filtrów (`mat-select`, `mat-chip-listbox`)
+- [ ] `ThreatDetailComponent` — `mat-tab-group`: Przegląd | Mitigacje | Kod | Powiązania
+- [ ] `ThreatCardComponent` — mat-card, `SeverityBadgeComponent` (mat-chip), STRIDE chips, OnPush
+- [ ] `MatrixComponent` — tabela mapowania OWASP ↔ MITRE ATLAS ↔ CompTIA
+- [ ] `FrameworkListComponent` + `FrameworkDetailComponent` (mat-expansion-panel)
+- [ ] Wszystkie komponenty: `ChangeDetectionStrategy.OnPush`, typed Angular Signals
+
+**Security checkpoint:** D-04 (parameterized queries); bean validation na filtrach; globalna obsługa wyjątków bez stack trace.
 
 ### Phase 3 — Code Samples + MITRE ATLAS Timeline (Sprints 5–6, Weeks 9–12)
-Pokrycie: US-04, US-08, US-09, US-10
+Pokrycie: US-08, US-09, US-10
 
-- [ ] `CodeSamplePanelComponent` — mat-tab-group z zakładkami Python/Java/Go/Scala/Lua
-- [ ] Prism.js lazy load per język (LazyPrismDirective)
-- [ ] Attack Demo tab: mat-card z czerwoną obwódką + PODATNY badge + BotWarningDialogComponent
-- [ ] `BotWarningDialogComponent` — MatDialog "Rozumiem ryzyko" przy kopiowaniu attack demo
-- [ ] MITRE ATLAS Kill-Chain timeline (ngx-echarts horizontal bar)
-- [ ] `CoverageComponent` — heatmapa pokrycia STRIDE per framework (ECharts heatmap)
-- [ ] Tag cloud — mat-chip-set do przeglądania po kategorii
+- [ ] `CodeSamplePanelComponent` — `mat-tab-group` × 5 języków, `LazyPrismDirective`
+- [ ] Attack Demo tab: mat-card z `border-left: 4px solid #b71c1c`, badge `PODATNY`
+- [ ] `BotWarningDialogComponent` — MatDialog "Rozumiem ryzyko" przed skopiowaniem kodu ataku
+- [ ] MITRE ATLAS Kill-Chain timeline — ngx-echarts horizontal gantt-bar (fazy: Reconnaissance → Impact)
+- [ ] `CoverageComponent` — ECharts heatmap pokrycia STRIDE per framework
+- [ ] Tag cloud — `mat-chip-set` do przeglądania po kategorii
+
+**Security checkpoint:** D-02 (DomSanitizer w ThreatCardComponent); próbki kodu ATTACK_DEMO nigdy nie wykonywane server-side.
 
 ### Phase 4 — Advanced Features (Sprints 6–7, Weeks 11–14)
-Pokrycie: US-05, US-06, US-07, US-08
+Pokrycie: US-05, US-06, US-07
 
-- [ ] Wyszukiwanie pełnotekstowe: `tsvector` PostgreSQL + `GET /api/v1/search?q=`
-- [ ] `SearchResultsComponent` — wyniki z podświetlonymi fragmentami (Angular pipe)
-- [ ] Global search w mat-toolbar (`SearchBarComponent`)
-- [ ] Export do CSV / PDF: `GET /api/v1/export?format=csv&frameworkCode=LLM`
-- [ ] Dark mode toggle — Angular Material theme switch (signal-based)
-- [ ] Zakładki / ulubione — localStorage service
-- [ ] `CrossReferenceComponent` — tabela mapowania między frameworkami
+- [ ] Full-text search: `tsvector` PostgreSQL na polach title+description+attackVector
+- [ ] `GET /api/v1/search?q=` — paginacja, podświetlone fragmenty
+- [ ] `SearchResultsComponent` — `HighlightPipe` do renderowania `<mark>` tagów (sanitized)
+- [ ] `SearchBarComponent` w mat-toolbar z `mat-autocomplete`
+- [ ] Export CSV / PDF: `GET /api/v1/export?format=csv&frameworkCode=LLM`
+- [ ] Dark mode toggle — Angular Material theme switch (ui.store Signal)
+- [ ] Ulubione / zakładki — `localStorage` service, persist per session
+
+**Security checkpoint:** Limit długości query `?q=` do 200 znaków; CSV injection prevention (Apache Commons CSV quote-all); rate limit na /api/v1/search.
 
 ### Phase 5 — i18n Polish ↔ English (Sprint 8, Weeks 15–16)
 Pokrycie: US-11
 
-- [ ] `ThreatTranslation` entity + migracja Flyway
-- [ ] `Accept-Language` header — `LocaleInterceptor` w Angular HttpClient
-- [ ] `ngx-translate` z plikami `assets/i18n/pl.json` i `en.json`
+- [ ] `ThreatTranslation` entity — Flyway V9
+- [ ] `LocaleService` — `ngx-translate`, zapis w `localStorage` (`tv_locale`), emit ngx-translate language change
+- [ ] `LocaleInterceptor` — wstrzykuje `Accept-Language: pl|en` do każdego HttpClient request
 - [ ] `LanguageToggleComponent` — `mat-button-toggle-group` w mat-toolbar
-- [ ] Zapis wyboru w localStorage (klucz `tv_locale`)
-- [ ] Próbki kodu NIGDY nie tłumaczone
-- [ ] Build-time walidacja parzystości kluczy i18n (`i18n-keys-parity.spec.ts`)
+- [ ] `assets/i18n/pl.json` + `assets/i18n/en.json` — klucze bez HTML; ≥ 50 kluczy
+- [ ] Próbki kodu NIGDY nie tłumaczone — `sampleType: ATTACK_DEMO|DEFENSE` wyłączone z i18n
+- [ ] CI test: `i18n-keys-parity.spec.ts` — niezgodność kluczy = fail build
+
+**Security checkpoint:** D-10 (plain text w plikach i18n); `LocaleInterceptor` waliduje wartość do 'pl' lub 'en' — nie przekazuje raw navigator.language.
 
 ### Phase 6 — Cornucopia: FRE + LLM + AAI (Sprint 9, Weeks 17–18)
 Pokrycie: US-12, US-13, US-14
 
-- [ ] `CornucopiaCard` entity + migracja Flyway V9
-- [ ] `YamlCardLoader` — ładowanie kart z `data/cornucopia/*.yaml` przy starcie
-- [ ] `ContentIntegrityVerifier` (@PostConstruct) — weryfikacja SHA-256 plików YAML
-- [ ] `OwaspRefValidator` — allowlist identyfikatorów OWASP
-- [ ] `CardSuitController` — `GET /api/v1/threats?suit=FRE` itp.
-- [ ] Angular: `FrontendSecurityComponent` — przeglądarka kart FRE (US-12)
-- [ ] Angular: `LlmSecurityComponent` + `LlmMatrixComponent` (US-13)
-- [ ] Angular: `AgenticAiComponent` + `AgenticMatrixComponent` (US-14)
-- [ ] `CornucopiaCardComponent` — mat-card z suit badge, value badge, OWASP ref chips
-- [ ] Angular DomSanitizer — bezpieczne renderowanie descriptionPl/En
-- [ ] `AUTONOMY RISK` mat-chip na kartach AAI (isCritical === true)
-- [ ] Bucket4j rate limit 60 req/min per IP na wszystkich `/api/v1/threats?suit=*`
+- [ ] `CornucopiaCard` entity — Flyway V10
+- [ ] `YamlCardLoader` @PostConstruct — ładuje z `data/cornucopia/*.yaml`
+- [ ] `ContentIntegrityVerifier` @PostConstruct — SHA-256 vs `data/hashes.json` (D-05)
+- [ ] `OwaspRefValidator` — allowlist z `data/ref-allowlists.json`
+- [ ] `CardSuitController` — `GET /api/v1/threats?suit=FRE|LLM|AAI`
+- [ ] `FrontendSecurityComponent` — przeglądarka kart FRE z polskimi opisami (US-12)
+- [ ] `LlmSecurityComponent` + `LlmMatrixComponent` — macierz LLM Top 10 × karty (US-13)
+- [ ] `AgenticAiComponent` + `AgenticMatrixComponent` — macierz Agentic AI (US-14)
+- [ ] `CornucopiaCardComponent` — mat-card: suit badge, value circle, OWASP ref chips, OnPush
+- [ ] `AUTONOMY RISK` mat-chip na kartach AAIK, AAIQ (isCritical + suitCode=AAI)
+- [ ] Bucket4j rate limit 60 req/min per IP na `/api/v1/threats?suit=*` (D-08)
+
+**Security checkpoint:** D-05 (ContentIntegrityVerifier GREEN); D-07 (OwaspRefValidator); DomSanitizer wywołany w CornucopiaCardComponent przed `[innerHTML]`.
 
 ### Phase 7 — Cornucopia: STRIDE EoP + MLSec (Sprints 10–11, Weeks 19–22)
 Pokrycie: US-15, US-16
 
-- [ ] `MitreAtlasRefValidator` — allowlist technik ATLAS
-- [ ] `GET /api/v1/threats/stride/categories`, `GET /api/v1/stride-heatmap` (JWT)
-- [ ] `GET /api/v1/threats/mlsec/categories`, filtry po MITRE ATLAS
-- [ ] Angular: `StrideCatalogueComponent` — 6 suit STRIDE × 13 kart, mat-expansion-panel per suit
-- [ ] Angular: `StrideHeatmapComponent` — interaktywna heatmapa ECharts (AuthGuard)
-- [ ] Diagramy STRIDE renderowane server-side jako SVG (D3.js safe rendering)
-- [ ] Angular: `MlSecurityComponent` — 4 kategorie MLSec z MITRE ATLAS ref chips
-- [ ] `ML-SPECIFIC` mat-chip na kartach EMR/EIR/EOR/EDR
-- [ ] X-Frame-Options: DENY na `/stride-heatmap` (Spring Security header)
+- [ ] `MitreAtlasRefValidator` — allowlist z `data/mitre-atlas-allowlist.json`
+- [ ] `GET /api/v1/threats/stride/categories`, `GET /api/v1/stride-heatmap` (JWT required)
+- [ ] `GET /api/v1/threats/mlsec/categories`, filtry po mitreRef
+- [ ] `StrideCatalogueComponent` — `mat-accordion` × 6 suit, 13 kart per suit
+- [ ] `StrideHeatmapComponent` — ngx-echarts heatmap, `AuthGuard` (D-11 wizualizacja)
+- [ ] Diagramy agentów: SVG generowane server-side (D-12) — Angular renderuje jako `<img>`
+- [ ] `MlSecurityComponent` — 4 mat-tab (EMR/EIR/EOR/EDR), MITRE ATLAS ref chips
+- [ ] `ML-SPECIFIC` mat-chip na kartach MLSec
+- [ ] Spring Security header: `X-Frame-Options: DENY` na `/stride-heatmap`
+
+**Security checkpoint:** AuthGuard rediryguje na /login bez JWT; `X-Frame-Options: DENY` + CSP `frame-ancestors 'none'`; MitreAtlasRefValidator blokuje nieznane T-kody.
 
 ### Phase 8 — Cornucopia: Mobile + DevOps (Sprints 12–13, Weeks 23–26)
 Pokrycie: US-17, US-18
 
-- [ ] `MavsRefValidator`, `CicdSecRefValidator`, `OatRefValidator`
-- [ ] API: mobile suits (PC, AA, NS, RS, CRM, CM) + `/api/v1/matrix/mobile-vs-web`
-- [ ] Angular: `MobileSecurityComponent` + `MobileVsWebMatrixComponent` (US-17)
-- [ ] API: DVO (DevOps) + BOT (Automated Threats) suits
-- [ ] Angular: `DevOpsSecurityComponent` — sekcje DVO i BOT (US-18)
-- [ ] `BotWarningDialogComponent` ulepszone — dialog "Rozumiem ryzyko" dla kart BOT credential enumeration
-- [ ] CI job `yaml-content-integrity`: schema validation + injection scan + hash update
+- [ ] `MavsRefValidator`, `CicdSecRefValidator`, `OatRefValidator` (D-07)
+- [ ] `GET /api/v1/threats/mobile/suits` + `/api/v1/matrix/mobile-vs-web`
+- [ ] `MobileSecurityComponent` — 6 suit Mobile (PC/AA/NS/RS/CRM/CM), MASVS ref chips
+- [ ] `MobileVsWebMatrixComponent` — mat-table MASVS vs OWASP Web Top 10
+- [ ] `GET /api/v1/threats?suit=DVO|BOT`
+- [ ] `DevOpsSecurityComponent` — sekcje DVO i BOT, CICD-SEC chips, OAT chips
+- [ ] `BotWarningDialogComponent` v2 — dialog `MatDialog` z flagą `bot_warning_ack` w localStorage
+- [ ] CI job `yaml-content-integrity`: ajv schema + `CI_EXPLOIT_PATTERN` grep + hash-generator
+- [ ] Przykłady kodu DVO: TYLKO pseudokod (D-13)
+
+**Security checkpoint:** BotWarningDialog wyświetlany przed kartami BOT (BOTX, BOTJ, BOTK); OatRefValidator blokuje niezdefiniowane OAT-xxx; DVO code review — brak działających exploitów pipeline.
 
 ### Phase 9 — Integration, Testing & Hardening (Sprints 14–16, Weeks 27–31)
-Pokrycie: integracja US-01–US-18
+Pokrycie: US-01–US-18 pełna integracja
 
-- [ ] Testy jednostkowe: JUnit 5 + Mockito (≥ 80% pokrycia), Jest + ATL dla Angular components
-- [ ] Testy integracyjne: Testcontainers + PostgreSQL dla wszystkich endpointów REST
-- [ ] Testy E2E: Cypress 13 — 18 user stories × 1+ scenariusz
-- [ ] Abuse cases AC-01–AC-13 — wszystkie GREEN w CI
-- [ ] DAST: OWASP ZAP full active scan
-- [ ] Audit dostępności: axe-core (Angular CDK a11y) — WCAG 2.1 AA
-- [ ] Wydajność: Lighthouse ≥ 85 mobile, API < 200 ms p95
-- [ ] Produkcyjny Docker build + Nginx config
-- [ ] ng build --configuration production: inicjalny bundle < 600 KB gzip
-- [ ] Monitoring: Loki alert SEC-007 + SEC-008, metryka `content_integrity_check_ok`
+- [ ] Testy jednostkowe: JUnit 5 + Mockito ≥ 80% (JaCoCo); Jest 29 + ATL ≥ 75% (lcov)
+- [ ] Testy integracyjne: Testcontainers PostgreSQL 16 dla wszystkich endpointów REST
+- [ ] Testy E2E: Cypress 13 — 18 plików `*.cy.ts` (≥ 25 scenariuszy łącznie)
+- [ ] Abuse cases AC-01–AC-18 — wszystkie GREEN w CI
+- [ ] DAST: OWASP ZAP full active scan — 0 High/Critical
+- [ ] SCA: OWASP Dependency Check + npm audit — 0 Critical CVEs
+- [ ] Trivy Docker image scan — 0 CRITICAL
+- [ ] `axe-core` (cypress-axe) — 0 Critical/Serious WCAG 2.1 AA violations
+- [ ] Lighthouse mobile ≥ 85 (Performance), ≥ 90 (Accessibility)
+- [ ] `ng build --configuration production` bundle audit (zob. Section 11)
+- [ ] Monitoring: Loki alerts SEC-007/SEC-008/SEC-009; Prometheus metryki
 
 ---
 
-## 6. API Endpoint Map
+## 7. API Endpoint Map
 
 ### Framework & Threat (bazowe)
 ```
@@ -372,9 +417,9 @@ GET  /api/v1/frameworks/{code}                  — szczegóły frameworku + lis
 GET  /api/v1/threats                            — lista zagrożeń
                                                   filtry: frameworkCode, severity, stride,
                                                           tag, q, suit, owaspRef, mitreRef
-GET  /api/v1/threats/{id}                       — pojedyncze zagrożenie z mitigacjami
-GET  /api/v1/threats/{id}/mitigations           — mitigacje dla zagrożenia
-GET  /api/v1/threats/{id}/code-samples          — próbki kodu (wszystkie języki)
+GET  /api/v1/threats/{id}                       — zagrożenie z mitigacjami
+GET  /api/v1/threats/{id}/mitigations
+GET  /api/v1/threats/{id}/code-samples
 ```
 
 ### Cornucopia Card Suits (US-12–US-18)
@@ -383,11 +428,11 @@ GET  /api/v1/threats?suit=FRE                   — karty Frontend (US-12)
 GET  /api/v1/threats?suit=LLM                   — karty LLM (US-13)
 GET  /api/v1/threats?suit=AAI                   — karty Agentic AI (US-14)
 GET  /api/v1/threats/stride/categories          — 6 kategorii STRIDE (US-15)
-GET  /api/v1/threats?suit=SP                    — karty Spoofing (US-15, przykład)
-GET  /api/v1/threats?suit=EMR                   — karty Model Risk (US-16)
+GET  /api/v1/threats?suit=SP|TA|RE|ID|DS|EP     — poszczególne talie STRIDE (US-15)
 GET  /api/v1/threats/mlsec/categories           — 4 kategorie MLSec (US-16)
-GET  /api/v1/threats?suit=NS                    — karty Network & Storage (US-17)
+GET  /api/v1/threats?suit=EMR|EIR|EOR|EDR       — poszczególne talie MLSec (US-16)
 GET  /api/v1/threats/mobile/suits               — 6 talii Mobile (US-17)
+GET  /api/v1/threats?suit=PC|AA|NS|RS|CRM|CM    — poszczególne talie Mobile (US-17)
 GET  /api/v1/threats?suit=DVO                   — karty DevOps (US-18)
 GET  /api/v1/threats?suit=BOT                   — karty Automated Threats (US-18)
 ```
@@ -419,8 +464,8 @@ GET  /api/v1/code-samples?language=JAVA
 
 ### Admin CRUD (JWT — rola ADMIN)
 ```
-POST   /api/v1/admin/threats
-PUT    /api/v1/admin/threats/{id}               — sanityzacja OWASP Java HTML Sanitizer
+POST   /api/v1/admin/threats                    — sanityzacja OwaspJavaHtmlSanitizer
+PUT    /api/v1/admin/threats/{id}
 DELETE /api/v1/admin/threats/{id}
 POST   /api/v1/admin/code-samples
 PUT    /api/v1/admin/code-samples/{id}
@@ -434,85 +479,85 @@ GET  /api/v1/actuator/metrics/content.integrity
 
 ---
 
-## 7. Angular Component & Route Structure
+## 8. Angular Component & Route Structure
 
 ```
-AppShellComponent  (mat-sidenav-container)
+AppShellComponent  (mat-sidenav-container + AppShell i18n)
 │
 ├── mat-sidenav  (navigation)
 │   ├── mat-nav-list: Dashboard, Frameworks, Threats, Matrix, Search, About
-│   └── LanguageToggleComponent (mat-button-toggle-group PL | EN)
+│   └── LanguageToggleComponent (mat-button-toggle-group  PL | EN)
 │
 ├── mat-toolbar  (top bar)
-│   ├── SearchBarComponent (mat-form-field + mat-autocomplete)
-│   ├── DarkModeToggleComponent (mat-slide-toggle)
+│   ├── SearchBarComponent  (mat-form-field + mat-autocomplete)
+│   ├── DarkModeToggleComponent  (mat-slide-toggle → uiStore.darkMode Signal)
 │   └── LanguageToggleComponent
 │
-└── <router-outlet>
+└── <router-outlet>   (lazy-loaded via loadComponent / loadChildren)
 
-Routes (lazy-loaded):
+Routes:
   /                               → DashboardComponent
-  /frameworks                     → FrameworkListComponent        (mat-grid-list kart)
-  /frameworks/:code               → FrameworkDetailComponent      (mat-expansion-panel)
-  /frameworks/frontend-security   → FrontendSecurityComponent     (US-12)
-  /frameworks/llm-security        → LlmSecurityComponent          (US-13)
-  /frameworks/agentic-ai          → AgenticAiComponent            (US-14)
-  /frameworks/stride              → StrideCatalogueComponent      (US-15, mat-accordion)
-  /frameworks/ml-security         → MlSecurityComponent           (US-16)
-  /frameworks/mobile-security     → MobileSecurityComponent       (US-17)
-  /frameworks/devops-security     → DevOpsSecurityComponent       (US-18)
-  /threats                        → ThreatBrowserComponent        (mat-table + mat-paginator)
-  /threats/:id                    → ThreatDetailComponent         (mat-tab-group 4 tabs)
+  /frameworks                     → FrameworkListComponent       (mat-grid-list)
+  /frameworks/:code               → FrameworkDetailComponent     (mat-expansion-panel)
+  /frameworks/frontend-security   → FrontendSecurityComponent    (US-12)
+  /frameworks/llm-security        → LlmSecurityComponent         (US-13)
+  /frameworks/agentic-ai          → AgenticAiComponent           (US-14)
+  /frameworks/stride              → StrideCatalogueComponent     (US-15, mat-accordion)
+  /frameworks/ml-security         → MlSecurityComponent          (US-16)
+  /frameworks/mobile-security     → MobileSecurityComponent      (US-17)
+  /frameworks/devops-security     → DevOpsSecurityComponent      (US-18)
+  /threats                        → ThreatBrowserComponent       (mat-table + mat-paginator)
+  /threats/:id                    → ThreatDetailComponent        (mat-tab-group 4 zakładek)
   /matrix                         → MatrixComponent
-  /matrix/llm                     → LlmMatrixComponent            (US-13)
-  /matrix/agentic                 → AgenticMatrixComponent        (US-14)
-  /matrix/mobile-vs-web           → MobileVsWebMatrixComponent    (US-17)
-  /stride-heatmap                 → StrideHeatmapComponent        (AuthGuard, US-15)
-  /coverage                       → CoverageComponent             (ECharts heatmap)
-  /search                         → SearchResultsComponent        (US-06)
+  /matrix/llm                     → LlmMatrixComponent           (US-13)
+  /matrix/agentic                 → AgenticMatrixComponent       (US-14)
+  /matrix/mobile-vs-web           → MobileVsWebMatrixComponent   (US-17)
+  /stride-heatmap                 → StrideHeatmapComponent       (AuthGuard, US-15)
+  /coverage                       → CoverageComponent            (ECharts)
+  /search                         → SearchResultsComponent       (US-06)
   /about                          → AboutComponent
 
 Shared Components (src/app/shared/components/):
-  ThreatCardComponent             — mat-card, severity color bar, STRIDE chips
-  CornucopiaCardComponent         — mat-card, suit badge, value circle, OWASP ref chips
-  CodeSamplePanelComponent        — mat-tab-group × 5 languages, Prism.js highlight
-  BotWarningDialogComponent       — MatDialog confirmation przed skopiowaniem kodu ataku
-  StrideHeatmapComponent          — ngx-echarts heatmap (reused in /coverage)
-  MatrixTableComponent            — mat-table z sticky columns dla macierzy
-  LlmMatrixComponent              — specjalizowana macierz LLM Top 10 × Cornucopia
-  LanguageToggleComponent         — mat-button-toggle-group PL | EN
-  SeverityBadgeComponent          — mat-chip colored by severity
-  OwaspRefChipListComponent       — mat-chip-set z linkami do OWASP
+  ThreatCardComponent             — mat-card, severity color bar, STRIDE mat-chips, OnPush
+  CornucopiaCardComponent         — mat-card, suit badge, value circle, OWASP ref chips, OnPush
+  CodeSamplePanelComponent        — mat-tab-group × 5 languages, LazyPrismDirective
+  BotWarningDialogComponent       — MatDialog "Rozumiem ryzyko" (US-18, localStorage flag)
+  StrideHeatmapComponent          — ngx-echarts heatmap (US-05, US-15)
+  MatrixTableComponent            — mat-table sticky columns
+  LlmMatrixComponent              — macierz LLM Top 10 × Cornucopia (US-13)
+  LanguageToggleComponent         — mat-button-toggle-group PL | EN (US-11)
+  SeverityBadgeComponent          — mat-chip colored by severity enum
+  OwaspRefChipListComponent       — mat-chip-set z linkami OWASP
 
 Angular Services (src/app/core/services/):
-  FrameworkService                — HttpClient calls to /api/v1/frameworks
-  ThreatService                   — HttpClient calls to /api/v1/threats
-  CardSuitService                 — HttpClient calls to /api/v1/threats?suit=*
-  MatrixService                   — HttpClient calls to /api/v1/matrix/*
-  SearchService                   — HttpClient calls to /api/v1/search
-  ExportService                   — HttpClient calls to /api/v1/export
+  FrameworkService                — /api/v1/frameworks
+  ThreatService                   — /api/v1/threats
+  CardSuitService                 — /api/v1/threats?suit=*
+  MatrixService                   — /api/v1/matrix/*
+  SearchService                   — /api/v1/search
+  ExportService                   — /api/v1/export
   LocaleService                   — ngx-translate + localStorage tv_locale
-  AuthService                     — JWT management, login, refresh
+  AuthService                     — JWT, login, token refresh
 
 Guards (src/app/core/guards/):
-  AuthGuard                       — protects /stride-heatmap and /admin/**
-  AdminGuard                      — protects /admin/**
+  AuthGuard                       — chroni /stride-heatmap i /admin/**
+  AdminGuard                      — chroni /admin/**
 
 Interceptors (src/app/core/interceptors/):
-  AuthInterceptor                 — adds Authorization: Bearer <token>
-  LocaleInterceptor               — adds Accept-Language: pl/en
+  AuthInterceptor                 — Authorization: Bearer <token>
+  LocaleInterceptor               — Accept-Language: pl|en (walidowany)
 
 NgRx Signals Store (src/app/store/):
   frameworksStore                 — frameworks signal slice
-  threatsStore                    — threats, filters, pagination signal slice
-  cardSuitsStore                  — cornucopia card suits signal slice
-  searchStore                     — search query + results signal slice
-  uiStore                         — darkMode, locale signals
+  threatsStore                    — threats, filters, pagination
+  cardSuitsStore                  — cornucopia card suits
+  searchStore                     — query + results
+  uiStore                         — darkMode, locale
 ```
 
 ---
 
-## 8. Code Sample Strategy
+## 9. Code Sample Strategy
 
 Każde zagrożenie ma co najmniej jedną mitigację z 5 próbkami kodu (jedna na język). Karty Cornucopia mają co najmniej jedną próbkę pokazującą bezpieczny wzorzec.
 
@@ -520,10 +565,9 @@ Każde zagrożenie ma co najmniej jedną mitigację z 5 próbkami kodu (jedna na
 CodeSamplePanelComponent — mat-tab-group:
   [Python]  [Java]  [Go]  [Scala]  [Lua]
 
-Każda zakładka:
-  mat-tab-group wewnętrzny:
-    [Attack Demo]  — mat-card z border-red-600, badge PODATNY
-    [Defense]      — mat-card z border-green-600, badge BEZPIECZNY
+Każda zakładka — wewnętrzny mat-tab-group:
+  [Attack Demo]  — mat-card border-left red + badge PODATNY  (nigdy nie uruchamiany server-side)
+  [Defense]      — mat-card border-left green + badge BEZPIECZNY
 ```
 
 | Język | Główny framework |
@@ -536,98 +580,148 @@ Każda zakładka:
 
 ---
 
-## 9. Security Data Coverage Plan
+## 10. Security Data Coverage Plan
 
 ### OWASP Web Top 10 (2021)
 A01–A10 — wszystkie 10 zagrożeń  
-Cornucopia: talie `AZ`, `AT`, `VE`, `CR`, `SM`, `C` (webapp-cards-3.0)
+Pokrycie przez karty Cornucopia: `VE` (Validation), `AT` (Authentication), `SM` (Session Management), `AZ` (Authorization), `CR` (Cryptography), `C` (Cornucopia)
 
 ### OWASP LLM Top 10 (2025)
 LLM01–LLM10 — wszystkie 10 zagrożeń  
-Cornucopia: talia `LLM` (companion-cards-1.0)  
+Pokrycie przez karty: talia `LLM` (Cornucopia Companion v1.0)  
 Macierz: `/matrix/llm`
 
 ### OWASP Agentic AI Top 10 (2026)
 AgentAI01–AgentAI10 — wszystkie 10 zagrożeń  
-Cornucopia: talia `AAI` (companion-cards-1.0)  
+Pokrycie przez karty: talia `AAI` (Cornucopia Companion v1.0)  
 Macierz: `/matrix/agentic`
 
 ### OWASP API Security Top 10
-API1–API10 — wszystkie 10 zagrożeń
+API1–API10 — wszystkie 10 zagrożeń (framework `OWASP_API` w DB)
 
 ### OWASP Top 10 Client-Side Security Risks
-C01–C10 — wszystkie 10 zagrożeń  
-Cornucopia: talia `FRE` (companion-cards-1.0)
+C01–C10 — wszystkie 10  
+Pokrycie przez karty: talia `FRE` (Cornucopia Companion v1.0)
 
 ### OWASP Top 10 CI/CD Security Risks
 CICD-SEC-01–10 — wszystkie 10  
-Cornucopia: talia `DVO`
+Pokrycie przez karty: talia `DVO`
 
 ### OWASP Automated Threats (OAT)
 OAT-001–OAT-021 — minimum 13  
-Cornucopia: talia `BOT`
+Pokrycie przez karty: talia `BOT`
 
 ### OWASP MASVS 2.0
 MASVS-STORAGE, MASVS-CRYPTO, MASVS-AUTH, MASVS-NETWORK, MASVS-PLATFORM, MASVS-CODE, MASVS-RESILIENCE  
-Cornucopia: talie `PC, AA, NS, RS, CRM, CM` (mobileapp-cards-1.1)
+Pokrycie przez karty: talie `PC, AA, NS, RS, CRM, CM` (Cornucopia Mobile App v1.1)  
+Macierz: `/matrix/mobile-vs-web`
 
-### STRIDE (Threat Modeling)
-6 kategorii: Spoofing, Tampering, Repudiation, Information Disclosure, DoS, EoP  
-Cornucopia: talie `SP, TA, RE, ID, DS, EP` (stride-eop-cards-5.0)  
+### STRIDE
+6 kategorii: S, T, R, I, D, E  
+Pokrycie przez karty: talie `SP, TA, RE, ID, DS, EP` (STRIDE EoP v5.0)  
 Heatmapa: `/stride-heatmap`
 
 ### MITRE ATLAS
 Minimum 15 technik: T0010, T0011, T0014, T0020, T0024, T0029, T0043, T0044, T0051, T0046  
-Cornucopia: talie `EMR, EIR, EOR, EDR` (mlsec-cards-1.0)
+Pokrycie przez karty: talie `EMR, EIR, EOR, EDR` (Elevation of MLSec v1.0)
 
-### CompTIA Security+ SY0-701 / SecAI+
-Minimum 20 tematów: Prompt Injection, Data Poisoning, Model Theft, Adversarial ML, Deepfakes, AI Red Teaming, Zero Trust, NIST AI RMF, NIS2/UKSC, AI-BOM
+### CompTIA Security+ SY0-701 / SecAI+ 2026
+Minimum 20 tematów: Prompt Injection, Data Poisoning, Model Theft, Adversarial ML, Deepfakes, AI Red Teaming, Zero Trust, NIST AI RMF, NIS2/UKSC, AI-BOM, BYOD risks, Supply Chain AI
 
 ---
 
-## 10. Cornucopia Content Pipeline
+## 11. Cornucopia Content Pipeline
 
-Sześć plików YAML kart (`data/cornucopia/*.yaml`) traktowane jako aktywa bezpieczeństwa — niemutowalne po załadowaniu, z weryfikacją SHA-256 przy każdym starcie.
+Pliki YAML kart (`data/cornucopia/*.yaml`) traktowane jako **aktywa bezpieczeństwa** — niemutowalne po załadowaniu, z weryfikacją SHA-256 przy każdym starcie.
 
 ```
 data/cornucopia/
-├── webapp-cards-3.0-en.yaml
-├── companion-llm-cards-1.0-en.yaml
-├── mobileapp-cards-1.1-en.yaml
-├── stride-eop-cards-5.0-en.yaml
-├── mlsec-cards-1.0-en.yaml
+├── webapp-cards-3.0-en.yaml          → VE, AT, SM, AZ, CR, C  (OWASP Web)
+├── companion-llm-cards-1.0-en.yaml   → LLM, FRE, DVO, BOT, CLD, AAI
+├── mobileapp-cards-1.1-en.yaml       → PC, AA, NS, RS, CRM, CM
+├── stride-eop-cards-5.0-en.yaml      → SP, TA, RE, ID, DS, EP
+├── mlsec-cards-1.0-en.yaml           → EMR, EIR, EOR, EDR
 └── translations/
-    ├── pl.cards.json
-    └── en.cards.json
+    ├── pl.cards.json                  → polskie tłumaczenia (klucz: cardId)
+    └── en.cards.json                  → angielskie wersje (źródło: YAML desc)
 
-data/hashes.json                       ← SHA-256 każdego pliku YAML
-data/mitre-atlas-allowlist.json
-data/ref-allowlists.json
+data/hashes.json                       → SHA-256 każdego pliku YAML
+data/mitre-atlas-allowlist.json        → dozwolone kody technik T0xxx
+data/ref-allowlists.json               → allowlisty: OWASP, MASVS, CICD-SEC, OAT
 ```
 
-**Workflow:** PR → CI schema+injection scan+hash-generator → merge → `ContentIntegrityVerifier` @PostConstruct → Loki monitoring
+**Workflow zmian kart:**
+1. PR do `data/cornucopia/*.yaml` → CODEOWNERS: @security-team (min. 2 zatwierdzenia)
+2. CI job `yaml-content-integrity`: ajv schema validation + `CI_EXPLOIT_PATTERN` grep + `*RefValidator`
+3. Po merge: `hash-generator` bot aktualizuje `data/hashes.json`
+4. Startup Spring Boot: `ContentIntegrityVerifier` @PostConstruct → SHA-256 → `ContentIntegrityException` jeśli mismatch → aplikacja nie startuje
 
 ---
 
-## 11. Risk Register
+## 12. Angular Bundle Performance Strategy
+
+| Bundle | Cel | Strategia |
+|---|---|---|
+| Initial chunk | < 600 KB gzip | Lazy load każdego feature (loadComponent) |
+| Per-language Prism.js | < 30 KB per język | `LazyPrismDirective`: ładowany dopiero gdy zakładka aktywna |
+| ECharts | ~200 KB | Importowany tylko w CoverageComponent + StrideHeatmapComponent |
+| D3.js | ~60 KB | Importowany tylko w StrideCatalogueComponent server-side SVG |
+| i18n JSON | ~15 KB per język | Ładowany przy starcie i cachowany przez ngx-translate |
+
+**Angular budget config (angular.json):**
+```json
+"budgets": [
+  { "type": "initial", "maximumWarning": "500kb", "maximumError": "600kb" },
+  { "type": "anyComponentStyle", "maximumWarning": "4kb", "maximumError": "8kb" }
+]
+```
+
+**OnPush across all components** — zero `Default` change detection in production code. CI lint rule enforces this.
+
+---
+
+## 13. Abuse Cases Summary
+
+| ID | Scenariusz | Wektor | Kontrola | Test |
+|---|---|---|---|---|
+| AC-01 | SQL Injection w filtrze `?q=` | VEK (webapp) → A03:2021 | JPA named params | `ThreatFilterSQLInjectionTest` |
+| AC-02 | JWT tampering — modyfikacja payload | SPK (STRIDE) → A07:2021 | RS256 podpis | `JwtValidationTest` |
+| AC-03 | Mass enumeration bez auth | BOT suit → OAT-011 | Bucket4j 60/min | `RateLimitIT` |
+| AC-04 | XSS w Angular template | FRE suit → A03:2021 | Angular DomSanitizer, strict | `CornucopiaCardXSSTest` |
+| AC-05 | IDOR — dostęp do cudzych zakładek | AZK (webapp) → A01:2021 | User-scoped queries | `BookmarkAuthorizationIT` |
+| AC-06 | ReDoS via malicious search regex | VE suit → A03:2021 | Query length limit 200 chars | `SearchReDoSTest` |
+| AC-07 | CSV injection w eksporcie | FRE4 → A03:2021 | Apache Commons CSV quote-all | `CsvInjectionIT` |
+| AC-08 | Clickjacking `/stride-heatmap` | FREX → Client-Side C05 | X-Frame-Options DENY | ZAP headerscan |
+| AC-09 | Bot scraping kart | BOTK → OAT-011 | Bucket4j 429 | `BotScrapingRateLimitIT` |
+| AC-10 | XSS przez admin update opisu karty | FRE4 → A03:2021 | OWASP Java HTML Sanitizer | `CardDescriptionXSSIT` |
+| AC-11 | YAML file tampering w CI/CD | DVO8 → A08:2021 | ContentIntegrityVerifier | `YamlIntegrityVerifierTest` |
+| AC-12 | Fałszywy MITRE ATLAS ID w karcie | EMRX → allowlist bypass | MitreAtlasRefValidator | `MitreAtlasRefValidatorTest` |
+| AC-13 | Credential stuffing via BOT endpoint | BOTX → OAT-008 | Bucket4j + alert SEC-007 | `CredentialStuffingRateLimitIT` |
+| AC-14 | SVG injection w diagramie AAI | AAI suit → A03:2021 | Server-side SVG + CSP | `SvgInjectionTest` |
+| AC-15 | BotWarningDialog bypass (direct URL) | BOTK → OAT-011 | AuthGuard + localStorage flag | `BotWarningBypassTest.cy.ts` |
+
+---
+
+## 14. Risk Register
 
 | Ryzyko | Mitigacja |
 |---|---|
-| Angular bundle zbyt duży | Lazy loading per feature, Prism.js leniwe ładowanie, OnPush change detection |
-| Cross-references niespójne | Encja `CrossReference` z enum typem relacji |
-| Próbki kodu nieaktualne | Pole `version` na `CodeSample`; admin UI |
-| Wyszukiwanie wolne | `tsvector` indeks PostgreSQL |
-| YAML zmodyfikowany złośliwie | `ContentIntegrityVerifier` SHA-256 + CODEOWNERS |
+| Angular bundle zbyt duży | Lazy loading per feature, Prism.js lazy, budgets w angular.json |
+| Cross-references niespójne | Encja `CrossReference` z enum `relationshipType` |
+| Próbki kodu nieaktualne | Pole `version` na `CodeSample`; admin UI do aktualizacji |
+| Wyszukiwanie wolne | `tsvector` indeks PostgreSQL na title+description |
+| YAML zmodyfikowany złośliwie | `ContentIntegrityVerifier` SHA-256 + CODEOWNERS 2 zatwierdzenia |
 | Fałszywe OWASP/MITRE ID | `*RefValidator` server-side allowlisty |
-| XSS przez admin update | OWASP Java HTML Sanitizer + Angular DomSanitizer |
-| Scraping bazy kart | Bucket4j 60 req/min per IP |
-| Clickjacking heatmapy | X-Frame-Options: DENY + CSP frame-ancestors 'none' |
-| SVG injection w diagramach | Server-side SVG rendering + CSP blok `<script>` |
-| Angular strict mode naruszenia | `strict: true` w tsconfig.json, CI tsc --noEmit |
+| XSS przez admin update karty | OWASP Java HTML Sanitizer + Angular DomSanitizer |
+| Bot scraping całej bazy kart | Bucket4j 60 req/min per IP + Loki alert SEC-007 |
+| Clickjacking heatmapy STRIDE | `X-Frame-Options: DENY` + CSP `frame-ancestors 'none'` |
+| SVG injection diagramy AAI | Server-side SVG rendering, DomSanitizer, CSP blok `<script>` |
+| Angular strict mode naruszenia | `strict: true` w tsconfig.json, `ng build` fail w CI |
+| Nieaktualne zależności npm/Maven | OWASP Dependency Check + npm audit + Trivy w każdym PR |
 
 ---
 
-## 12. Directory Layout
+## 15. Directory Layout
 
 ```
 app02_angular/
@@ -643,27 +737,27 @@ app02_angular/
 │       │   ├── ThreatViewApplication.java
 │       │   ├── config/
 │       │   │   ├── SecurityConfig.java
-│       │   │   └── RateLimitConfig.java
+│       │   │   └── RateLimitConfig.java            ← Bucket4j
 │       │   ├── controller/
 │       │   │   ├── FrameworkController.java
 │       │   │   ├── ThreatController.java
-│       │   │   ├── CardSuitController.java
+│       │   │   ├── CardSuitController.java          ← Cornucopia suits
 │       │   │   ├── MatrixController.java
 │       │   │   ├── SearchController.java
 │       │   │   ├── ExportController.java
 │       │   │   └── AdminController.java
 │       │   ├── service/
 │       │   │   ├── ThreatService.java
-│       │   │   ├── FrontendThreatService.java
-│       │   │   ├── LlmThreatService.java
-│       │   │   ├── AgenticThreatService.java
-│       │   │   ├── StrideThreatService.java
-│       │   │   ├── MlSecThreatService.java
-│       │   │   ├── MobileSecThreatService.java
-│       │   │   ├── DevOpsThreatService.java
-│       │   │   └── LocalizationService.java
+│       │   │   ├── FrontendThreatService.java       ← FRE
+│       │   │   ├── LlmThreatService.java            ← LLM
+│       │   │   ├── AgenticThreatService.java        ← AAI
+│       │   │   ├── StrideThreatService.java         ← STRIDE EoP
+│       │   │   ├── MlSecThreatService.java          ← MLSec
+│       │   │   ├── MobileSecThreatService.java      ← Mobile MAS
+│       │   │   ├── DevOpsThreatService.java         ← DVO + BOT
+│       │   │   └── LocalizationService.java         ← i18n
 │       │   ├── integrity/
-│       │   │   ├── ContentIntegrityVerifier.java
+│       │   │   ├── ContentIntegrityVerifier.java    ← @PostConstruct SHA-256
 │       │   │   ├── YamlCardLoader.java
 │       │   │   └── validator/
 │       │   │       ├── OwaspRefValidator.java
@@ -685,21 +779,21 @@ app02_angular/
 │       │   └── security/
 │       ├── main/resources/
 │       │   ├── application.yml
-│       │   └── db/migration/
+│       │   └── db/migration/                        ← Flyway V1..V20
 │       └── test/
 │
 ├── frontend/
-│   ├── angular.json
+│   ├── angular.json                                 ← budgets, lazy routes
 │   ├── package.json
-│   ├── tsconfig.json              ← strict: true
+│   ├── tsconfig.json                                ← strict: true, strictTemplates: true
 │   ├── jest.config.ts
 │   └── src/
 │       ├── main.ts
 │       ├── app/
-│       │   ├── app.config.ts
-│       │   ├── app.routes.ts
+│       │   ├── app.config.ts                        ← provideRouter, provideHttpClient,
+│       │   │                                          provideAnimations, provideTranslateService
+│       │   ├── app.routes.ts                        ← lazy loadComponent definitions
 │       │   ├── core/
-│       │   │   ├── auth/
 │       │   │   ├── guards/
 │       │   │   │   ├── auth.guard.ts
 │       │   │   │   └── admin.guard.ts
@@ -745,13 +839,13 @@ app02_angular/
 │       │   │   ├── frameworks/
 │       │   │   ├── threats/
 │       │   │   ├── suits/
-│       │   │   │   ├── frontend-security/
-│       │   │   │   ├── llm-security/
-│       │   │   │   ├── agentic-ai/
-│       │   │   │   ├── stride-catalogue/
-│       │   │   │   ├── ml-security/
-│       │   │   │   ├── mobile-security/
-│       │   │   │   └── devops-security/
+│       │   │   │   ├── frontend-security/           ← US-12
+│       │   │   │   ├── llm-security/                ← US-13
+│       │   │   │   ├── agentic-ai/                  ← US-14
+│       │   │   │   ├── stride-catalogue/            ← US-15
+│       │   │   │   ├── ml-security/                 ← US-16
+│       │   │   │   ├── mobile-security/             ← US-17
+│       │   │   │   └── devops-security/             ← US-18
 │       │   │   ├── matrix/
 │       │   │   ├── stride-heatmap/
 │       │   │   ├── coverage/
@@ -764,10 +858,10 @@ app02_angular/
 │       │       └── ui.store.ts
 │       ├── assets/
 │       │   └── i18n/
-│       │       ├── pl.json
-│       │       └── en.json
+│       │       ├── pl.json                          ← UI strings PL (plain text only)
+│       │       └── en.json                          ← UI strings EN (plain text only)
 │       └── styles/
-│           ├── theme.scss
+│           ├── theme.scss                           ← Angular Material custom theme (indigo-amber)
 │           └── styles.scss
 │
 ├── data/
@@ -797,56 +891,69 @@ app02_angular/
 │
 ├── e2e/
 │   ├── cypress.config.ts
-│   └── cypress/
-│       └── e2e/
-│           ├── us01-framework-browser.cy.ts
-│           ├── us02-threat-filter.cy.ts
-│           ├── ...
-│           └── us18-devops-security.cy.ts
+│   └── cypress/e2e/
+│       ├── us01-framework-browser.cy.ts
+│       ├── us02-threat-filter.cy.ts
+│       ├── us03-threat-detail.cy.ts
+│       ├── us04-cross-reference.cy.ts
+│       ├── us05-stride-heatmap.cy.ts
+│       ├── us06-global-search.cy.ts
+│       ├── us07-export.cy.ts
+│       ├── us08-atlas-timeline.cy.ts
+│       ├── us09-scala-code.cy.ts
+│       ├── us10-lua-code.cy.ts
+│       ├── us11-language-switch.cy.ts
+│       ├── us12-frontend-security.cy.ts
+│       ├── us13-llm-security.cy.ts
+│       ├── us14-agentic-ai.cy.ts
+│       ├── us15-stride.cy.ts
+│       ├── us16-ml-security.cy.ts
+│       ├── us17-mobile-security.cy.ts
+│       └── us18-devops-security.cy.ts
 │
 └── docker-compose.yml
 ```
 
 ---
 
-## 13. User Stories — Kompletna Lista
+## 16. User Stories — Kompletna Lista
 
 | ID | Rola | Potrzeba | Cel |
 |---|---|---|---|
 | US-01 | security engineer | przeglądać katalog frameworków bezpieczeństwa | mieć jeden punkt dostępu do wszystkich standardów |
-| US-02 | security engineer | filtrować zagrożenia według frameworku, severity, STRIDE, tagu | szybko znaleźć zagrożenia istotne dla projektu |
+| US-02 | security engineer | filtrować zagrożenia wg frameworku, severity, STRIDE, tagu, q | szybko znaleźć zagrożenia istotne dla projektu |
 | US-03 | security engineer | widzieć szczegóły zagrożenia z mitigacjami i próbkami kodu | rozumieć jak wdrożyć ochronę |
 | US-04 | CompTIA SecAI+ student | zobaczyć jak LLM01 Prompt Injection mapuje do MITRE ATLAS AML.T0051 | rozumieć zależności między frameworkami |
 | US-05 | security trainer | wyświetlić heatmapę STRIDE na projektorze | wizualnie wyjaśnić pokrycie STRIDE na warsztatach |
 | US-06 | pentester | wyszukać "deepfake" i znaleźć wszystkie powiązane zagrożenia | złożyć checklistę testów dla klienta |
 | US-07 | team lead | wyeksportować przefiltrowaną listę zagrożeń do CSV | włączyć ją do rejestru ryzyk |
-| US-08 | developer | zobaczyć timeline Kill Chain MITRE | rozumieć na jakiej fazie ataku działa każda technika |
+| US-08 | developer | zobaczyć timeline Kill Chain MITRE | rozumieć na jakiej fazie ataku działa każda technika ATLAS |
 | US-09 | Scala developer | znaleźć próbki kodu dla ataków na łańcuch dostaw w Scala | zaimplementować SCA w potoku Scala |
 | US-10 | Lua/OpenResty developer | zobaczyć przykłady Lua dla rate limiting zapobiegającego LLM DoS | skonfigurować guardrails NGINX dla proxy LLM API |
-| US-11 | Polish-speaking student | przełączyć całą aplikację z angielskiego na polski jednym kliknięciem | uczyć się wszystkich opisów zagrożeń w ojczystym języku |
-| US-12 | React/frontend developer | przeglądać karty OWASP Cornucopia FRE z polskimi opisami i ref Client-Side Top 10 | mapować scenariusze ataków client-side na mitigacje |
-| US-13 | ML engineer | eksplorować OWASP LLM Top 10 2025 przez karty Cornucopia LLM z macierzą interaktywną | rozumieć prompt injection, data poisoning, excessive agency |
-| US-14 | agentic AI developer | studiować OWASP Agentic AI Top 10 2026 przez karty AAI | projektować safeguards human-in-the-loop dla agentów |
-| US-15 | security architect | używać katalogu kart STRIDE EoP z interaktywną heatmapą per komponent | prowadzić ustrukturyzowaną sesję threat modelingu |
-| US-16 | data scientist | przeglądać ryzyka ML (EMR/EIR/EOR/EDR) z referencjami MITRE ATLAS | identyfikować adversarial ML, model theft, data poisoning |
-| US-17 | Android/iOS developer | zobaczyć zagrożenia OWASP MASVS przez karty Cornucopia Mobile App | rozumieć jak kontrolki mobile różnią się od web |
-| US-18 | DevSecOps engineer | przeglądać ryzyka supply chain (DVO) i wzorce botów (BOT) | chronić CI/CD i bronić się przed automatycznymi atakami |
+| US-11 | Polish-speaking student | przełączyć całą aplikację z angielskiego na polski jednym kliknięciem | uczyć się opisów zagrożeń w ojczystym języku |
+| US-12 | React/frontend developer | przeglądać karty Cornucopia FRE (DOM XSS, clickjacking, CORS, JWT forgery) z polskimi opisami i ref Client-Side Top 10 | mapować scenariusze ataków client-side na mitigacje w React |
+| US-13 | ML engineer / AI architect | eksplorować OWASP LLM Top 10 2025 przez karty Cornucopia LLM z macierzą interaktywną | rozumieć prompt injection, data poisoning, excessive agency |
+| US-14 | agentic AI developer | studiować OWASP Agentic AI Top 10 2026 przez karty AAI (excessive autonomy, unvalidated trust chains) | projektować human-in-the-loop safeguards dla agentów |
+| US-15 | security architect / threat modeler | używać katalogu kart STRIDE EoP (6 suit) z interaktywną heatmapą per komponent systemu | prowadzić ustrukturyzowaną sesję threat modelingu |
+| US-16 | data scientist / ML security engineer | przeglądać ryzyka ML (EMR/EIR/EOR/EDR) z referencjami MITRE ATLAS | identyfikować adversarial ML, model theft, data poisoning |
+| US-17 | Android/iOS developer | zobaczyć zagrożenia OWASP MASVS przez karty Cornucopia Mobile App + tabelę MASVS vs Web | rozumieć jak kontrolki mobile różnią się od web |
+| US-18 | DevSecOps engineer | przeglądać ryzyka supply chain (DVO) i wzorce botów (BOT) z ref OWASP CI/CD + rate limiting | chronić CI/CD i bronić się przed automatycznymi atakami |
 
 ---
 
-## 14. Milestones & Acceptance Criteria
+## 17. Milestones & Acceptance Criteria
 
 | Kamień | Deliverable | Ukończone gdy |
 |---|---|---|
-| M1 | Działający szkielet | `docker compose up` → Angular home + `/api/v1/frameworks` zwraca JSON; `ng serve` działa |
+| M1 | Działający szkielet | `docker compose up` → Angular home + `/api/v1/frameworks` 200 JSON; `ng serve` działa |
 | M2 | Pełne seedowanie danych | Wszystkie frameworki, zagrożenia, mitigacje w DB; API zwraca poprawne liczby |
-| M3 | Próbki kodu kompletne | Każde zagrożenie ma 5 próbek kodu widocznych w `ThreatDetailComponent` |
+| M3 | Próbki kodu kompletne | Każde zagrożenie ma 5 próbek w `CodeSamplePanelComponent` (Python/Java/Go/Scala/Lua) |
 | M4 | Macierz + heatmapa | MatrixComponent renderuje się; ECharts heatmapa STRIDE pokazuje procenty pokrycia |
-| M5 | Wyszukiwanie działa | Full-text search zwraca wyniki z podświetlonymi fragmentami |
-| M6 | i18n działa | Przełącznik PL/EN w mat-toolbar; cały UI w obu językach; kod nie tłumaczony |
-| M7 | Produkcyjny build | `ng build --configuration production` bundle < 600 KB gzip; Nginx serwuje SPA; actuator/health 200 |
+| M5 | Wyszukiwanie działa | Full-text search zwraca wyniki z podświetlonymi fragmentami w `HighlightPipe` |
+| M6 | i18n działa | mat-button-toggle PL/EN działa; cały UI w obu językach; próbki kodu nie tłumaczone |
+| M7 | Produkcyjny build | `ng build --configuration production` bundle initial < 600 KB gzip; Nginx 200; actuator/health 200 |
 | M8 | Karty FRE + LLM + AAI | FrontendSecurityComponent, LlmSecurityComponent, AgenticAiComponent działają; macierze dostępne |
-| M9 | STRIDE + MLSec | 78 kart STRIDE (6 suit); heatmapa STRIDE; 52 karty MLSec (4 suit) |
-| M10 | Mobile + DevOps | MobileSecurityComponent i DevOpsSecurityComponent działają; tabela MASVS vs Web |
-| M11 | Integralność treści | ContentIntegrityVerifier działa; CI job yaml-content-integrity GREEN |
-| M12 | Testy przechodzą | ≥ 195 testów; abuse cases AC-01–AC-13 GREEN; ZAP 0 HIGH findings; Lighthouse ≥ 85 |
+| M9 | STRIDE + MLSec | 78 kart STRIDE (6 × 13); ECharts heatmapa STRIDE; 52 karty MLSec (4 × 13) |
+| M10 | Mobile + DevOps | MobileSecurityComponent, DevOpsSecurityComponent; tabela MASVS vs Web; BotWarningDialog |
+| M11 | Integralność treści | ContentIntegrityVerifier GREEN; CI job yaml-content-integrity GREEN |
+| M12 | Testy przechodzą | ≥ 195 testów; abuse cases AC-01–AC-15 GREEN; ZAP 0 High; Lighthouse ≥ 85; axe-core 0 Critical |
