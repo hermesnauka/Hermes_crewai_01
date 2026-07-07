@@ -252,3 +252,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# GoSentry local dev / build artifacts (sqlc-generated code IS committed
+# per PLAN.md section 9 - do not add internal/store/sqlcgen/ here)
+.local-dev/
+backend/bin/
+
