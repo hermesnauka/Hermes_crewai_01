@@ -39,7 +39,7 @@ fi
 
 echo "== threatview role/database =="
 "$PGBIN/psql.exe" -U securevision -h 127.0.0.1 -p 5432 -d postgres -v ON_ERROR_STOP=0 -c \
-    "DO \$\$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'threatview') THEN CREATE ROLE threatview LOGIN PASSWORD 'threatview'; END IF; END \$\$;" >/dev/null 2>&1 \
+    "DO \$\$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'threatview') THEN CREATE ROLE threatview LOGIN PASSWORD \${POSTGRES_PASSWORD}; END IF; END \$\$;" >/dev/null 2>&1 \
     || "$PGBIN/psql.exe" -U threatview -h 127.0.0.1 -p 5432 -d postgres -c "SELECT 1" >/dev/null 2>&1 \
     || echo "  (couldn't confirm/create role via securevision superuser - check manually if the backend fails to connect)"
 "$PGBIN/psql.exe" -U securevision -h 127.0.0.1 -p 5432 -d postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'threatview'" 2>/dev/null | grep -q 1 \
@@ -52,6 +52,12 @@ if curl -sf http://localhost:8080/api/v1/frameworks >/dev/null 2>&1; then
 else
     (
         cd "$ROOT_DIR/backend"
+		
+		
+		export DB_HOST=127.0.0.1 DB_PORT=5432 DB_NAME="${POSTGRES_DB}" DB_USER="${POSTGRES_USER}" DB_PASSWORD="${POSTGRES_PASSWORD}"
+
+		
+		
         export DB_HOST=127.0.0.1 DB_PORT=5432 DB_NAME=threatview DB_USER=threatview DB_PASSWORD=threatview
         nohup mvn spring-boot:run > "$RUN_DIR/backend.log" 2>&1 &
         echo $! > "$RUN_DIR/backend.pid"
