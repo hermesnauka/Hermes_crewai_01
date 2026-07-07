@@ -7,6 +7,12 @@
 # frontend) as standalone portable installs under C:\Users\krish\tools\
 # instead of containers. The tool paths below are specific to this machine -
 # don't assume this script works unmodified anywhere else.
+#
+# Postgres is a SHARED instance across sibling apps on this machine (one
+# pgdata dir, one server on :5432) - this script only ensures the
+# `securevision` role/database exist inside it, it doesn't own the server.
+# Stopping it via local-dev-down.sh affects any other sibling app currently
+# using it too.
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -30,6 +36,15 @@ else
     timeout 30 bash -c 'until "'"$PGBIN"'/pg_isready.exe" -h 127.0.0.1 -p 5432 >/dev/null 2>&1; do sleep 1; done'
     echo "started"
 fi
+
+echo "== securevision role/database =="
+"$PGBIN/psql.exe" -U securevision -h 127.0.0.1 -p 5432 -d postgres -v ON_ERROR_STOP=0 -c \
+    "DO \$\$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'securevision') THEN CREATE ROLE securevision LOGIN PASSWORD \${POSTGRES_PASSWORD}; END IF; END \$\$;" >/dev/null 2>&1 \
+    || "$PGBIN/psql.exe" -U securevision -h 127.0.0.1 -p 5432 -d postgres -c "SELECT 1" >/dev/null 2>&1 \
+    || echo "  (couldn't confirm/create role via securevision superuser - check manually if the backend fails to connect)"
+"$PGBIN/psql.exe" -U securevision -h 127.0.0.1 -p 5432 -d postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'securevision'" 2>/dev/null | grep -q 1 \
+    || "$PGBIN/psql.exe" -U securevision -h 127.0.0.1 -p 5432 -d postgres -c "CREATE DATABASE threatview OWNER securevision;" >/dev/null 2>&1
+echo "ready"
 
 echo "== Backend (Spring Boot, :8080) =="
 if curl -sf http://localhost:8080/api/v1/frameworks >/dev/null 2>&1; then
