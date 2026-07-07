@@ -3,7 +3,7 @@
 **Wersja:** 1.0  
 **Data:** 2026-07-07  
 **Metodologia:** Agile — Scrum + Kanban z integracją SSDLC  
-**Dotyczy:** US-01 – US-18 / Scala 3.3 LTS + ZIO 2 + React 18
+**Dotyczy:** US-01 – US-19 / Scala 3.3 LTS + ZIO 2 + React 18
 
 ---
 
@@ -87,7 +87,7 @@ Przed pierwszym sprintem:
 | **S** — Spoofing | React localStorage JWT | Token theft przez XSS → session hijacking | HIGH | HttpOnly cookie dla refresh token; access token TTL 15 min |
 | **T** — Tampering | YAML card files | Modyfikacja opisów kart Cornucopia | HIGH | `ContentIntegrityVerifier` ZIO layer — SHA-256, `ZIO.die` on mismatch |
 | **T** — Tampering | React `dangerouslySetInnerHTML` | XSS przez renderowanie niebezpiecznego HTML | HIGH | `DOMPurify.sanitize()` przed każdym `dangerouslySetInnerHTML` |
-| **T** — Tampering | Admin CRUD endpoint | XSS payload w opisie karty przez admina | HIGH | OWASP Java HTML Sanitizer (JVM interop) + DOMPurify frontend |
+| **T** — Tampering | Admin CRUD endpoint | XSS payload w opisie karty przez admina | HIGH | `SafeHtml` — własny, czysto-scalowy sanitizer allow-list (PLAN.md D-14) + DOMPurify frontend |
 | **R** — Repudiation | Admin CRUD ZIO HTTP | Admin zaprzecza modyfikacji karty | MEDIUM | Strukturyzowane logi Loki z `sub` claim z JWT |
 | **I** — Information Disclosure | ZIO error channel | Wyciek ZIO stack trace przez HTTP 500 | MEDIUM | `ZIO.mapError(_ => ApiError("INTERNAL_ERROR", "An error occurred"))` |
 | **I** — Information Disclosure | YAML git history | Ujawnienie nieopublikowanych kart | LOW | gitleaks CI + opcjonalnie git-crypt |
@@ -929,6 +929,32 @@ test('direct navigation to BOT card without ack shows modal', async ({ page }) =
 
 ---
 
+## 10.5 Faza 8.5 — Digital-by-Default Harms (Sprint 13, Tydzień 26)
+
+Ostatnia z sześciu talii YAML w `docs/OWASP_stories/` — `dbd-cards-1.0-en.yaml` (suity SCO, ARC, AGE, TRU, POR, COR, WC) — była pominięta we wcześniejszym planowaniu i jest dodana tutaj jako uzupełnienie pokrycia (US-19). Wymaga osobnego traktowania w SSDLC, ponieważ różni się fundamentalnie od pięciu poprzednich talii:
+
+| ID | Wymaganie | Implementacja |
+|---|---|---|
+| SR-H-01 | Karty `dbd` nie mają pola `severity` — model danych `cardKind: "DESIGN_HARM"` odróżnia je od `Threat`/`CornucopiaCard` z severity | `DigitalHarmsService` zwraca DTO bez pola `severity` |
+| SR-H-02 | `DesignHarmBadge` (React) nigdy nie dziedziczy stylów `SeverityBadge` | Osobny komponent, weryfikowany testem Vitest (AC-16) |
+| SR-H-03 | Cross-reference do A04:2021 tworzony ręcznie przez security-team, nie przez `OwaspRefValidator` (talia nie ma natywnych identyfikatorów OWASP w YAML) | `CrossReference` seed data, code review wymagany |
+| SR-H-04 | Polskie tłumaczenia SCO/ARC/AGE/TRU/POR podlegają tej samej bramce jakości i18n co reszta aplikacji (D-10) | Recenzja native speakera przed merge |
+
+**Wniosek dla threat modelu (Faza 0, §2.2):** ta talia jest dobrym przykładem tego, że nie każde "zagrożenie" w katalogu bezpieczeństwa ma CVSS. Włączenie jej bez odróżnienia od reszty groziłoby fałszywym poczuciem, że aplikacja "wykryła 5 nowych krytycznych podatności" — stąd wymaganie SR-H-01/SR-H-02 zostało dodane jako poprawka do pierwotnego threat modelu, nie jako wymaganie funkcjonalne.
+
+**AC-16: Harms deck nie jest błędnie prezentowana jako lista CVE**
+```typescript
+// DigitalHarmsPage.spec.tsx
+it('never renders a SeverityBadge on a dbd card', async () => {
+  render(<DigitalHarmsPage />)
+  const card = await screen.findByTestId('card-SCO2')
+  expect(within(card).queryByTestId('severity-badge')).not.toBeInTheDocument()
+  expect(within(card).getByTestId('design-harm-badge')).toBeInTheDocument()
+})
+```
+
+---
+
 ## 11. Faza 9 — Integracja i Hardening (Sprint 14–16, Tygodnie 27–31)
 
 ### 11.1 Piramida testów ScalaShield
@@ -1110,13 +1136,14 @@ http_request_duration_seconds{uri="/api/v1/threats",le="0.2"}  // histogram p95 
 | US-09 | Injection w Scala snippet | T — A03 | — | `codeSnippet` plain String, no eval | `CodeSampleSpec` |
 | US-10 | Injection w Lua snippet | T — A03 | — | `codeSnippet` plain String, no eval | `CodeSampleSpec` |
 | US-11 | Header injection Accept-Language | T | — | `LocaleMiddleware` allowlist pl/en | `LocaleMiddlewareSpec` |
-| US-12 | XSS w opisie karty FRE | XSS — A03/C03 | AC-04, AC-10 | DOMPurify + OWASP HTML Sanitizer (JVM) | `ThreatCardXSSSpec` |
+| US-12 | XSS w opisie karty FRE | XSS — A03/C03 | AC-04, AC-10 | DOMPurify + `SafeHtml` (pure-Scala sanitizer, D-14) | `ThreatCardXSSSpec` |
 | US-13 | LLM card YAML poisoning | T — LLM04 | AC-11 | `ContentIntegrityVerifier` SHA-256 | `YamlIntegritySpec` |
 | US-14 | AAI SVG injection | T — A03 | AC-14 | Server-side SVG (Batik) | `SvgEndpointSpec` |
 | US-15 | Clickjacking `/stride-heatmap` | T — C05 | AC-08 | `SecurityMiddleware` headers | ZAP headerscan |
 | US-16 | Fałszywy MITRE ATLAS ID | T — A03 | AC-12 | `MitreAtlasRefValidator` Scala Set | `MitreAtlasValidatorSpec` |
 | US-17 | Fałszywy MASVS ID | T — A03 | — | `MavsRefValidator` Scala Set | `MavsValidatorSpec` |
 | US-18 | Bot scraping + BotModal bypass | D — OAT-011 | AC-09, AC-13, AC-15 | ZIO STM bucket + BotWarningModal | `RateLimitSpec` + Playwright |
+| US-19 | Harms deck błędnie prezentowana jako CVE severity | — (nie STRIDE, projektowy/GRC) A04:2021 | AC-16 | `DesignHarmBadge` ≠ `SeverityBadge`; brak pola `severity` w DTO | `DigitalHarmsPage.spec.tsx` |
 
 ---
 
@@ -1167,6 +1194,13 @@ http_request_duration_seconds{uri="/api/v1/threats",le="0.2"}  // histogram p95 
 - [ ] CI job `yaml-content-integrity` GREEN dla każdego PR modyfikującego YAML
 - [ ] DVO kod: pseudokod — `CI_EXPLOIT_PATTERN` grep GREEN
 
+### Faza 8.5 — Digital-by-Default Harms
+- [ ] Wszystkie 6 plików YAML z `docs/OWASP_stories/` załadowane (włącznie z `dbd-cards-1.0-en.yaml`)
+- [ ] `DigitalHarmsService` nigdy nie zwraca pola `severity` dla kart `dbd`
+- [ ] `DesignHarmBadge` komponent nie dzieli stylów z `SeverityBadge` (AC-16 GREEN)
+- [ ] Banner disclaimera widoczny na `/frameworks/digital-harms` przed treścią kart
+- [ ] Polskie tłumaczenia SCO/ARC/AGE/TRU/POR zrecenzowane przez native speakera
+
 ### Faza 9 — Hardening
 - [ ] ZAP full active scan: 0 High/Critical alerts
 - [ ] `sbt dependencyCheck`: 0 Critical CVEs
@@ -1178,8 +1212,8 @@ http_request_duration_seconds{uri="/api/v1/threats",le="0.2"}  // histogram p95 
 - [ ] Vite production bundle initial chunk < 600 KB gzip
 - [ ] Scoverage ≥ 80% (backend)
 - [ ] V8 coverage ≥ 75% (frontend)
-- [ ] Wszystkie 18 plików Playwright `*.spec.ts` GREEN
-- [ ] Abuse cases AC-01–AC-15 GREEN
+- [ ] Wszystkie 19 plików Playwright `*.spec.ts` GREEN
+- [ ] Abuse cases AC-01–AC-16 GREEN
 - [ ] Monitoring aktywny: Loki alerts SEC-007, SEC-008, SEC-009
 - [ ] Prometheus: `content_integrity_check_ok` i `rate_limit_rejections_total` zbierane
 - [ ] README: instrukcja `docker compose up` quick-start

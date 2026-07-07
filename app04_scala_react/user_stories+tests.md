@@ -1374,18 +1374,146 @@ test.describe('US-18 DevOps Security', () => {
 
 ---
 
+## US-19 — Digital-by-Default Harms (karty SCO/ARC/AGE/TRU/POR)
+
+**Rola:** product owner / GRC reviewer w sektorze publicznym
+**Potrzeba:** przeglądać talię "Digital-by-Default Harms" (`dbd-cards-1.0-en.yaml`) z polskimi tłumaczeniami, jasno odróżnioną od talii technicznych podatności
+**Cel:** ocenić ryzyko wykluczenia cyfrowego i nieprzejrzystego projektowania usługi publicznej oraz zmapować je na OWASP A04:2021 Insecure Design
+
+### Polskie tłumaczenia kart SCO/ARC (z dbd-cards-1.0-en.yaml)
+
+| Karta | Suit | Angielski oryginał | Polskie tłumaczenie | Mapowanie |
+|---|---|---|---|---|
+| SCO2 | SCO — Scope | "Tommy does not create, publish and maintain publicly all the service assumptions, specifications, constraints, source code, algorithms, formulas, configuration settings, operating instructions and processes" | *"Tommy nie tworzy, nie publikuje i nie utrzymuje publicznie wszystkich założeń usługi, specyfikacji, ograniczeń, kodu źródłowego, algorytmów, formuł, ustawień konfiguracyjnych, instrukcji działania i procesów"* | **OWASP A04:2021 Insecure Design** — brak transparentności projektowej; w ujęciu SecAI+/GRC odpowiada wymogom wyjaśnialności algorytmów (AI Act, art. 13) |
+| SCO3 | SCO | "Charlotte designs the service so that claimants themselves have to generate/enter data about personal activities (e.g. job search) or obtain/enter existing data from elsewhere (e.g. care/health services, education providers)" | *"Charlotte projektuje usługę tak, że osoby z niej korzystające muszą samodzielnie generować/wprowadzać dane o swoich działaniach osobistych (np. poszukiwaniu pracy) lub zdobywać/wprowadzać dane już istniejące gdzie indziej (np. z opieki zdrowotnej, edukacji)"* | **A04:2021 Insecure Design** (odwrócona zasada data minimization — usługa domaga się więcej danych niż potrzebne od najsłabszego ogniwa, obywatela) |
+| SCO4 | SCO | "Sofia undertakes features which require claimants to provide information repeatedly or which is already held (e.g. address, other welfare benefits awarded, tax code)" | *"Sofia wdraża funkcje wymagające od osób korzystających z usługi ponownego podawania informacji, które już są w posiadaniu systemu (np. adres, inne przyznane świadczenia, kod podatkowy)"* | Naruszenie zasady **"collect once"** i minimalizacji danych (RODO art. 5); klasyfikowane pod **A04:2021**, nie jako podatność techniczna |
+| ARC2 | ARC — Architecture | "Theo formulates identity verification resulting in limited ways to verify new accounts (e.g. trusted identifiers like other existing government login credentials cannot be used)" | *"Theo formułuje weryfikację identyfikacji w sposób ograniczający metody weryfikacji nowych kont (np. nie można użyć zaufanych identyfikatorów, takich jak istniejące dane logowania do innych usług rządowych)"* | **A04:2021 Insecure Design** — ograniczona architektura uwierzytelniania zwiększa wykluczenie cyfrowe, pokrewne **STRIDE: Spoofing** (utrudniona, nie ułatwiona, weryfikacja tożsamości) |
+| ARC3 | ARC | "Oakley pulls the service into a shape which largely or completely excludes the use of paper for any input and output by claimants (e.g. submitting information on paper forms, formatting output for print, sending and receiving formal correspondence by post)" | *"Oakley nadaje usłudze formę, która w dużej mierze lub całkowicie wyklucza możliwość użycia papieru do jakiegokolwiek wejścia lub wyjścia danych (np. składania informacji na formularzach papierowych, formatowania wyjścia do druku, wysyłania i odbierania formalnej korespondencji pocztą)"* | Harm projektowy — wykluczenie cyfrowe osób bez dostępu do internetu; **A04:2021 Insecure Design** w ujęciu "secure AND accessible by design" |
+
+**Ważna uwaga metodologiczna** (widoczna też w UI jako banner ostrzegawczy): ta talia — w przeciwieństwie do FRE/LLM/AAI/STRIDE/MLSec/Mobile/DVO/BOT — **nie opisuje podatności technicznych z określonym poziomem severity**. Karty SCO/ARC/AGE/TRU/POR opisują błędy projektowania usługi (wykluczenie, nieprzejrzystość, nadmierne zbieranie danych), które nie mają numeru CVE ani wyniku CVSS. Traktowanie ich jak zwykłych zagrożeń technicznych (np. przypisanie im severity `CRITICAL`) byłoby błędem metodologicznym — stąd osobny komponent `DesignHarmBadge` (patrz US-19 kryteria akceptacji) i osobne pole `cardKind = "DESIGN_HARM"` w modelu danych.
+
+### Kryteria akceptacji
+- Strona `/frameworks/digital-harms` wyświetla wszystkie karty pogrupowane po 5 suitach (SCO, ARC, AGE, TRU, POR)
+- Każda karta renderowana jest z `DesignHarmBadge`, nigdy z `SeverityBadge` używanym dla zagrożeń technicznych
+- Każda karta ma widoczny chip `CrossReference` prowadzący do `A04:2021 Insecure Design`
+- Banner disclaimera na górze strony wyjaśnia, że talia opisuje harmy projektowe, nie podatności techniczne z CVE
+- `GET /api/v1/threats?suit=SCO|ARC|AGE|TRU|POR` zwraca karty z `owaspRefs = ["A04:2021"]`, ale **bez** pola `severity`
+- Polskie tłumaczenie widoczne przy przełączniku PL/EN, zgodnie z tą samą bramką jakości co US-11
+
+### Plan testów TDD
+
+**Backend:**
+```scala
+object DigitalHarmsServiceSpec extends ZIOSpecDefault:
+  def spec = suite("DigitalHarmsService")(
+    test("SCO2 should have owaspRefs containing A04:2021") {
+      for
+        service <- ZIO.service[DigitalHarmsService]
+        card    <- service.getCardById("SCO2", "en")
+      yield assert(card.owaspRefs)(contains("A04:2021"))
+    },
+    test("SCO2 card should have cardKind DESIGN_HARM, not a Severity value") {
+      for
+        service <- ZIO.service[DigitalHarmsService]
+        card    <- service.getCardById("SCO2", "en")
+      yield assert(card.cardKind)(equalTo("DESIGN_HARM")) &&
+            assert(card.severity)(isNone)
+    },
+    test("ARC2 should have reviewed Polish translation, not machine-translated fallback") {
+      for
+        service <- ZIO.service[DigitalHarmsService]
+        card    <- service.getCardById("ARC2", "pl")
+      yield assert(card.descriptionPl)(isNonEmptyString) &&
+            assert(card.descriptionPl)(not(equalTo(card.descriptionEn)))
+    },
+    test("digital-harms suits endpoint should return exactly 5 suits") {
+      for
+        service <- ZIO.service[DigitalHarmsService]
+        suits   <- service.listSuits
+      yield assert(suits.map(_.code))(
+        hasSameElements(List("SCO", "ARC", "AGE", "TRU", "POR")))
+    }
+  ).provide(DigitalHarmsService.live, TestDatabase.layer)
+```
+
+**Frontend:**
+```typescript
+// DigitalHarmsPage.spec.tsx
+describe('DigitalHarmsPage', () => {
+  it('renders all 5 suit sections', async () => {
+    render(<DigitalHarmsPage />)
+    for (const suit of ['sco', 'arc', 'age', 'tru', 'por']) {
+      await screen.findByTestId(`${suit}-section`)
+    }
+  })
+
+  it('renders DesignHarmBadge, never SeverityBadge, on dbd cards', async () => {
+    render(<DigitalHarmsPage />)
+    const card = await screen.findByTestId('card-SCO2')
+    expect(within(card).getByTestId('design-harm-badge')).toBeInTheDocument()
+    expect(within(card).queryByTestId('severity-badge')).not.toBeInTheDocument()
+  })
+
+  it('shows the non-technical-harm disclaimer banner', async () => {
+    render(<DigitalHarmsPage />)
+    expect(await screen.findByTestId('harms-disclaimer-banner')).toBeVisible()
+  })
+
+  it('shows an A04:2021 cross-reference chip on every card', async () => {
+    render(<DigitalHarmsPage />)
+    const chips = await screen.findAllByTestId('owasp-ref-chip-A04-2021')
+    expect(chips.length).toBeGreaterThan(0)
+  })
+})
+```
+
+**E2E:**
+```typescript
+// us19-digital-harms.spec.ts
+test.describe('US-19 Digital-by-Default Harms', () => {
+  test('shows all 5 suits on /frameworks/digital-harms', async ({ page }) => {
+    await page.goto('/frameworks/digital-harms')
+    for (const suit of ['sco', 'arc', 'age', 'tru', 'por']) {
+      await expect(page.getByTestId(`${suit}-section`)).toBeVisible()
+    }
+  })
+
+  test('disclaimer banner is visible before any card content', async ({ page }) => {
+    await page.goto('/frameworks/digital-harms')
+    await expect(page.getByTestId('harms-disclaimer-banner')).toBeVisible()
+  })
+
+  test('switching to Polish shows reviewed SCO2 translation', async ({ page }) => {
+    await page.goto('/frameworks/digital-harms')
+    await page.getByTestId('language-toggle').click()
+    await expect(page.getByTestId('card-SCO2')).toContainText(/Tommy nie tworzy/i)
+  })
+
+  test('API never returns a severity field for dbd cards', async ({ request }) => {
+    const response = await request.get('/api/v1/threats?suit=SCO')
+    const body = await response.json()
+    for (const card of body.items) {
+      expect(card.severity).toBeUndefined()
+      expect(card.cardKind).toBe('DESIGN_HARM')
+    }
+  })
+})
+```
+
+---
+
 ## Podsumowanie planu testów
 
-### Cel: ≥ 195 testów łącznie
+### Cel: ≥ 200 testów łącznie
 
 | Warstwa | Framework | Liczba | Typ |
 |---|---|---|---|
-| Backend — unit | ZIO Test + Mockito-Scala | ≥ 55 | Serwisy, walidatory, encje |
-| Backend — integracja | ZIO Test + Testcontainers PostgreSQL 16 | ≥ 25 | Routes, DB queries, rate-limit |
-| Frontend — komponenty | Vitest + React Testing Library | ≥ 40 | Komponenty UI, hooki, reducery |
+| Backend — unit | ZIO Test + Mockito-Scala | ≥ 58 | Serwisy, walidatory, encje (w tym `DigitalHarmsServiceSpec`) |
+| Backend — integracja | ZIO Test + Testcontainers PostgreSQL 16 | ≥ 26 | Routes, DB queries, rate-limit |
+| Frontend — komponenty | Vitest + React Testing Library | ≥ 43 | Komponenty UI, hooki, reducery (w tym `DigitalHarmsPage.spec.tsx`) |
 | Frontend — serwisy | Vitest + MSW 2 | ≥ 15 | Axios serwisy, interceptory, i18n |
-| E2E | Playwright | ≥ 25 | 18 plików spec × ~1.4 scenariuszy |
-| **RAZEM** | | **≥ 195** | |
+| E2E | Playwright | ≥ 27 | 19 plików spec × ~1.4 scenariuszy |
+| **RAZEM** | | **≥ 200** | |
 
 ### Cele pokrycia kodu
 
@@ -1426,7 +1554,8 @@ e2e/
 ├── us15-stride.spec.ts
 ├── us16-ml-security.spec.ts
 ├── us17-mobile-security.spec.ts
-└── us18-devops-security.spec.ts
+├── us18-devops-security.spec.ts
+└── us19-digital-harms.spec.ts
 ```
 
 ### Kluczowe scenariusze abuse case (powiązane testy)
@@ -1442,3 +1571,4 @@ e2e/
 | AC-07: CSV injection | `ExportServiceSpec` — QuoteMode.ALL | Sprint 6–7 |
 | AC-08: Clickjacking heatmap | `StrideThreatServiceSpec` — X-Frame-Options: DENY | Sprint 10–11 |
 | AC-09: BotWarning bypass | `us18-devops-security.spec.ts` — direct nav blocked | Sprint 12–13 |
+| AC-16: Harms deck misread as CVE severity | `DigitalHarmsPage.spec.tsx` — no `SeverityBadge` ever rendered on `dbd` cards | Sprint 13 |

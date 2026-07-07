@@ -30,14 +30,14 @@
 | Database ORM | ZIO Quill | (compile-time SQL macros) |
 | Database | PostgreSQL 16 | via HikariCP |
 | Cache | Redis 7 | via ZIO Redis |
-| Auth | ZIO HTTP JWT middleware (jjwt) | — |
+| Auth | ZIO HTTP JWT middleware (`jwt-scala`, RS256) | — |
 | Build | sbt | 1.9.x |
 | API docs | Tapir + Swagger UI | — |
 | DB migrations | Flyway | — |
 | Testing | ZIO Test + sttp | — |
 | Rate limiting | Custom ZIO STM token bucket middleware | — |
-| Input sanitization | OWASP Java HTML Sanitizer (JVM) | — |
-| Integrity checks | `java.security.MessageDigest` SHA-256 via Scala | — |
+| Input sanitization | `SafeHtml` — custom pure-Scala allow-list sanitizer (D-14) | — |
+| Integrity checks | SHA-256 via the JVM `MessageDigest` API, wrapped in a small Scala `Hashing` helper | — |
 | SAST | Scalafix + Wartremover + Scapegoat | — |
 | SCA | sbt-dependency-check | — |
 
@@ -173,6 +173,12 @@ Raw `String` from user input cannot be used where a `ThreatCode` is expected wit
 - **Scalafix**: custom rules for banned imports, enforced error handling patterns
 All rules fail the build — CI enforces zero violations.
 
+### D-14 — `SafeHtml`: a custom pure-Scala allow-list HTML sanitizer
+The backend never depends on a Java-branded sanitizer library. `SafeHtml.sanitize(raw: String): String` is a small, dependency-free Scala module: it parses the input with `scala.xml.pull.XMLEventReader`, keeps only an explicit allow-list of tags (`b`, `i`, `code`, `pre`, `a`) and attributes (`href`, restricted to `http(s)://` schemes), and drops everything else — including all `on*` event attributes and `javascript:`/`data:` URLs. `PUT /api/v1/admin/threats/:id` runs every free-text field through `SafeHtml.sanitize` before persisting; the React frontend additionally runs `DOMPurify.sanitize()` at render time (D-05), giving defense in depth without ever pulling in a Java library. The unit test suite includes property-based tests (ZIO Test + a small allow-list fuzzer) asserting that no `<script>`, `on\w+=`, or `javascript:` substring ever survives sanitization.
+
+### D-15 — `jwt-scala` instead of a Java JWT library
+JWT signing/verification uses `jwt-scala` (the `pdi.jwt` package) rather than `jjwt` or `java-jwt` — both JVM libraries with a "Java" identity in the ecosystem. `jwt-scala` exposes a Scala-idiomatic `Try`/`Either`-based API that composes directly with `ZIO.fromTry`, keeping the entire auth path in native Scala types (`JwtClaim`, `Either[JwtException, ...]`) with no Java-flavored exception types crossing into application code.
+
 ---
 
 ## 5. Data Model
@@ -250,9 +256,10 @@ case class CornucopiaCard(
                                //  "VE", "AT", "SM", "AZ", "CR",
                                //  "PC", "AA", "NS", "RS", "CRM", "CM",
                                //  "SP", "TA", "RE", "ID", "DS", "EP",
-                               //  "EMR", "EIR", "EOR", "EDR"
+                               //  "EMR", "EIR", "EOR", "EDR",
+                               //  "SCO", "ARC", "AGE", "TRU", "POR", "COR", "WC"
   suitName:      String,
-  edition:       String,       // "companion", "webapp", "mobileapp", "eop", "mlsec"
+  edition:       String,       // "companion", "webapp", "mobileapp", "eop", "mlsec", "dbd"
   value:         String,       // "2"–"10", "J", "Q", "K", "A"
   isCritical:    Boolean,      // true for J, Q, K
   descriptionEn: String,
@@ -438,22 +445,34 @@ Pokrycie: US-17, US-18
 - [ ] `MavsRefValidator`, `CicdSecRefValidator`, `OatRefValidator` (opaque types + allowlists)
 - [ ] `GET /api/v1/threats/mobile/suits` + `/api/v1/matrix/mobile-vs-web`
 - [ ] React `MobileSecurityPage` + `MobileVsWebMatrixPage` (US-17)
-- [ ] `GET /api/v1/threats?suit=DVO|BOT`
-- [ ] React `DevOpsSecurityPage` — DVO section (CICD-SEC chips) + BOT section (OAT chips)
+- [ ] `GET /api/v1/threats?suit=DVO|CLD|BOT`
+- [ ] React `DevOpsSecurityPage` — DVO section (CICD-SEC chips) + CLD section (A05:2021/A01:2021 chips) + BOT section (OAT chips)
 - [ ] `BotWarningModal` v2 — `localStorage` flag `bot_warning_ack` (US-18)
 - [ ] CI job `yaml-content-integrity`: ajv schema + injection grep + hash-generator
 - [ ] DVO code examples: pseudocode only (D-13 pattern — no real CI/CD exploits)
 
 **Security checkpoint:** `OatRefValidator` blocks undefined OAT-xxx; `BotWarningModal` flag stored securely in localStorage; DVO content reviewed — no working pipeline exploits.
 
+### Phase 8.5 — Cornucopia: Digital-by-Default Harms (Sprint 13, Week 26)
+Pokrycie: US-19
+
+- [ ] `YamlCardLoader` extended to load `dbd-cards-1.0-en.yaml` (suits SCO, ARC, AGE, TRU, POR, COR, WC)
+- [ ] `DigitalHarmsService` — read-only, no OWASP/MITRE ref validator applied (this deck has no CVE-style refs; it cross-links to A04:2021 by hand-curated `CrossReference` rows instead)
+- [ ] `GET /api/v1/threats/digital-harms/suits`, `GET /api/v1/threats?suit=SCO|ARC|AGE|TRU|POR`
+- [ ] React `DigitalHarmsPage` (US-19) — 5 suit sections, each card rendered with `DesignHarmBadge` instead of `SeverityBadge`
+- [ ] Polish translations for all `SCO`/`ARC`/`AGE`/`TRU`/`POR` cards reviewed by a native speaker before merge (same i18n gate as D-10)
+- [ ] Disclaimer banner on `/frameworks/digital-harms` explicitly stating this deck models *service-design harms*, not exploitable technical vulnerabilities
+
+**Security checkpoint:** `DesignHarmBadge` never reuses `CRITICAL`/`HIGH` styling (prevents this non-technical deck from being read as a CVE severity); Polish translation review gate enforced before merge, same as D-10.
+
 ### Phase 9 — Integration, Testing & Hardening (Sprints 14–16, Weeks 27–31)
-Pokrycie: US-01–US-18 full integration
+Pokrycie: US-01–US-19 full integration
 
 - [ ] ZIO Test suites: all service layers (mocked dependencies)
 - [ ] Integration tests: ZIO Test + sttp against real PostgreSQL 16 (Testcontainers Scala)
 - [ ] React: Vitest + RTL — all components, hooks, stores
-- [ ] E2E: Playwright — 18 spec files (us01 through us18)
-- [ ] Abuse cases AC-01–AC-15 GREEN in CI
+- [ ] E2E: Playwright — 19 spec files (us01 through us19)
+- [ ] Abuse cases AC-01–AC-16 GREEN in CI
 - [ ] DAST: OWASP ZAP full active scan — 0 High/Critical
 - [ ] `axe-playwright` accessibility — WCAG 2.1 AA
 - [ ] Lighthouse mobile ≥ 85 (Performance), ≥ 90 (Accessibility)
@@ -479,7 +498,7 @@ GET  /api/v1/threats/:id/mitigations
 GET  /api/v1/threats/:id/code-samples
 ```
 
-### Cornucopia Card Suits (US-12–US-18)
+### Cornucopia Card Suits (US-12–US-19)
 ```
 GET  /api/v1/threats?suit=FRE                   — Frontend cards (US-12)
 GET  /api/v1/threats?suit=LLM                   — LLM cards (US-13)
@@ -491,7 +510,10 @@ GET  /api/v1/threats?suit=EMR|EIR|EOR|EDR       — individual MLSec suits
 GET  /api/v1/threats/mobile/suits               — 6 Mobile suits (US-17)
 GET  /api/v1/threats?suit=PC|AA|NS|RS|CRM|CM    — individual Mobile suits
 GET  /api/v1/threats?suit=DVO                   — DevOps cards (US-18)
+GET  /api/v1/threats?suit=CLD                   — Cloud cards (US-18) — maps to A05:2021/A01:2021
 GET  /api/v1/threats?suit=BOT                   — Automated Threat cards (US-18)
+GET  /api/v1/threats/digital-harms/suits        — 5 Digital-by-Default suits (US-19)
+GET  /api/v1/threats?suit=SCO|ARC|AGE|TRU|POR   — individual Digital-by-Default suits (US-19)
 ```
 
 ### Matrix & Visualization
@@ -522,7 +544,7 @@ GET  /api/v1/code-samples?language=SCALA
 ### Admin CRUD (JWT — ADMIN role)
 ```
 POST   /api/v1/admin/threats
-PUT    /api/v1/admin/threats/:id           — OWASP Java HTML Sanitizer applied
+PUT    /api/v1/admin/threats/:id           — SafeHtml.sanitize applied (D-14)
 DELETE /api/v1/admin/threats/:id
 POST   /api/v1/admin/code-samples
 PUT    /api/v1/admin/code-samples/:id
@@ -559,6 +581,7 @@ Routes:
   /frameworks/ml-security         → MlSecurityPage          (US-16)
   /frameworks/mobile-security     → MobileSecurityPage      (US-17)
   /frameworks/devops-security     → DevOpsSecurityPage      (US-18)
+  /frameworks/digital-harms       → DigitalHarmsPage         (US-19)
   /threats                        → ThreatBrowserPage
   /threats/:id                    → ThreatDetailPage        (4 tabs)
   /matrix                         → MatrixPage
@@ -575,6 +598,7 @@ Components (src/components/):
   CornucopiaCard              — suit badge, value circle, OWASP ref chips, DOMPurify
   CodeSamplePanel             — Shiki per language, Attack Demo / Defense tabs
   BotWarningModal             — confirm dialog before showing BOT cards (US-18)
+  DesignHarmBadge              — distinct badge for the `dbd` deck (US-19) — never CRITICAL/HIGH styling
   StrideHeatmap               — Recharts heatmap
   MatrixTable                 — cross-reference table with sticky columns
   LlmMatrix                   — LLM Top 10 × Cornucopia interactive matrix
@@ -635,6 +659,7 @@ backend/
     │   │   ├── MlSecThreatService.scala
     │   │   ├── MobileSecThreatService.scala
     │   │   ├── DevOpsThreatService.scala
+    │   │   ├── DigitalHarmsService.scala        ← dbd deck (US-19), read-only, DESIGN HARM labelling
     │   │   └── LocalizationService.scala
     │   ├── integrity/
     │   │   ├── ContentIntegrityVerifier.scala  ← ZLayer, ZIO.die on hash mismatch
@@ -725,6 +750,11 @@ Cornucopia: EMR, EIR, EOR, EDR suits (MLSec v1.0)
 ### CompTIA Security+ SY0-701 / SecAI+ 2026 — min 20 topics
 Prompt Injection, Data Poisoning, Model Theft, Adversarial ML, Deepfakes, AI Red Teaming, Zero Trust, NIST AI RMF
 
+### OWASP A04:2021 Insecure Design — Digital-by-Default Harms (US-19)
+Cornucopia: SCO (Scope), ARC (Architecture), AGE (Agency), TRU (Trust), POR (Porosity) suits (`dbd-cards-1.0-en.yaml` v1.0) | Page: `/frameworks/digital-harms`
+
+This deck (source: `digitalbenefits.uk`) is explicitly **not** a technical-vulnerability deck like the other five — it models *service-design harms* in public-sector digital services (digital exclusion, forced re-entry of already-held data, opaque algorithms). It is included because it maps cleanly onto **OWASP A04:2021 Insecure Design** and onto the GRC/AI-Act transparency topics already required under CompTIA SecAI+ (§ above), and gives Polish-speaking learners a non-technical entry point into "secure by design" thinking before they meet STRIDE/Cornucopia's more code-level decks. It is labelled with a distinct `DESIGN HARM` badge in the UI (never the `CRITICAL`/`HIGH` severity badges used for technical threats) so it cannot be mistaken for a CVE-style vulnerability.
+
 ---
 
 ## 12. Cornucopia Content Pipeline
@@ -736,6 +766,7 @@ data/cornucopia/
 ├── mobileapp-cards-1.1-en.yaml       → PC, AA, NS, RS, CRM, CM
 ├── stride-eop-cards-5.0-en.yaml      → SP, TA, RE, ID, DS, EP
 ├── mlsec-cards-1.0-en.yaml           → EMR, EIR, EOR, EDR
+├── dbd-cards-1.0-en.yaml             → SCO, ARC, AGE, TRU, POR, COR, WC (US-19)
 └── translations/
     ├── pl.cards.json
     └── en.cards.json
@@ -763,7 +794,7 @@ data/ref-allowlists.json               ← OWASP, MASVS, CICD-SEC, OAT allowlist
 | Cross-references inconsistent | `CrossReference` case class with `RelationshipType` enum |
 | YAML tampered maliciously | `ContentIntegrityVerifier` ZLayer + CODEOWNERS |
 | False OWASP/MITRE IDs | Opaque type validators + Set[T] allowlists (D-07, D-12) |
-| XSS via admin card update | OWASP Java HTML Sanitizer (Scala JVM) + DOMPurify |
+| XSS via admin card update | `SafeHtml` pure-Scala sanitizer (D-14) + DOMPurify |
 | Bot scraping card API | ZIO STM rate limit 60 req/min per IP (D-08) |
 | Clickjacking /stride-heatmap | X-Frame-Options: DENY + CSP frame-ancestors 'none' |
 | SVG injection in AAI diagrams | Server-side SVG generation; DOMPurify strips `<script>` |
@@ -920,6 +951,7 @@ app04_scala_react/
 │   │   ├── mobileapp-cards-1.1-en.yaml
 │   │   ├── stride-eop-cards-5.0-en.yaml
 │   │   ├── mlsec-cards-1.0-en.yaml
+│   │   ├── dbd-cards-1.0-en.yaml       ← Digital-by-Default Harms (US-19)
 │   │   └── translations/
 │   │       ├── pl.cards.json
 │   │       └── en.cards.json
@@ -939,7 +971,8 @@ app04_scala_react/
 │       ├── us01-framework-browser.spec.ts
 │       ├── us02-threat-filter.spec.ts
 │       ├── ...
-│       └── us18-devops-security.spec.ts
+│       ├── us18-devops-security.spec.ts
+│       └── us19-digital-harms.spec.ts
 │
 └── docker-compose.yml
 ```
@@ -968,6 +1001,7 @@ app04_scala_react/
 | US-16 | data scientist | browse ML security risks (EMR/EIR/EOR/EDR) with MITRE ATLAS references | identify adversarial ML, model theft, data poisoning |
 | US-17 | Android/iOS developer | see OWASP MASVS threats via Cornucopia Mobile App cards + MASVS vs Web table | understand how mobile security differs from web |
 | US-18 | DevSecOps engineer | browse DevOps supply chain risks (DVO) and automated threat patterns (BOT) | protect CI/CD pipelines and defend against bots |
+| US-19 | public-sector product owner / GRC reviewer | browse the "Digital-by-Default Harms" deck (SCO/ARC/AGE/TRU/POR) with Polish translations, clearly separated from technical-vulnerability decks | assess digital-exclusion and opaque-design risk in a public digital service and map it to OWASP A04:2021 Insecure Design |
 
 ---
 
@@ -986,4 +1020,5 @@ app04_scala_react/
 | M9 | STRIDE + MLSec | 78 STRIDE cards (6 × 13); Recharts heatmap; 52 MLSec cards (4 × 13) |
 | M10 | Mobile + DevOps | MobileSecurityPage, DevOpsSecurityPage; MASVS vs Web table; BotWarningModal |
 | M11 | Content integrity | ContentIntegrityVerifier ZLayer GREEN; CI yaml-content-integrity GREEN |
-| M12 | Tests pass | ≥ 195 tests; abuse cases AC-01–AC-15 GREEN; ZAP 0 HIGH; Lighthouse ≥ 85; axe-playwright 0 Critical |
+| M12 | Digital-by-Default Harms | DigitalHarmsPage renders all 5 suits with `DESIGN HARM` badge; A04:2021 cross-reference visible |
+| M13 | Tests pass | ≥ 200 tests; abuse cases AC-01–AC-16 GREEN; ZAP 0 HIGH; Lighthouse ≥ 85; axe-playwright 0 Critical |

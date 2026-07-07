@@ -75,7 +75,7 @@ ScalaShield 2026 is a security reference and interactive learning platform. It p
 - FR-11.6 On locale switch, all visible text (navigation, badges, descriptions) shall update without a full page reload.
 
 ### FR-12 — Cornucopia: Frontend Security (FRE) (US-12)
-- FR-12.1 A dedicated page (`/frameworks/frontend-security`) shall display all Cornucopia FRE cards from the Website App Edition v3.0.
+- FR-12.1 A dedicated page (`/frameworks/frontend-security`) shall display all Cornucopia FRE cards from the **Companion Edition v1.0** (not the Website App Edition — `FRE` is a Companion-deck suit, per `__LLM_AI___companion-cards-1.0-en.yaml`).
 - FR-12.2 Each card shall show: card ID, value, suit, description (PL/EN selectable), OWASP reference chips.
 - FR-12.3 Cards shall be filterable by value and searchable by description keyword.
 
@@ -105,13 +105,23 @@ ScalaShield 2026 is a security reference and interactive learning platform. It p
 - FR-17.2 A matrix page (`/matrix/mobile-vs-web`) shall compare MASVS 2.0 categories with OWASP Web Top 10 entries.
 - FR-17.3 `GET /api/v1/threats/mobile/suits` shall return mobile suit definitions.
 
-### FR-18 — Cornucopia: DevOps + BOT Security (US-18)
+### FR-18 — Cornucopia: DevOps + Cloud + BOT Security (US-18)
 - FR-18.1 A dedicated page (`/frameworks/devops-security`) shall contain:
   - A DVO section (OWASP Top 10 CI/CD Security Risks) with CICD-SEC chips.
+  - A CLD section (Cloud, Companion Edition v1.0) covering over-permissive IAM roles, publicly exposed storage, and missing audit logging — with no dedicated OWASP Top 10 list to chip against, so cards instead cross-reference OWASP A05:2021 Security Misconfiguration and A01:2021 Broken Access Control.
   - A BOT section (OWASP Automated Threats) with OAT chips.
 - FR-18.2 A `BotWarningModal` confirmation dialog shall appear before the user can view any BOT suit card. The acknowledgement shall be stored in `localStorage` under key `bot_warning_ack`.
-- FR-18.3 DVO code examples shall show only pseudocode — no working pipeline exploits.
+- FR-18.3 DVO and CLD code examples shall show only pseudocode — no working pipeline exploits or real cloud misconfiguration templates.
 - FR-18.4 `GET /api/v1/threats?suit=BOT` shall apply rate limiting (60 req/min per IP).
+- FR-18.5 `GET /api/v1/threats?suit=CLD` shall return all Cloud suit cards with their `owaspRefs` populated (`A05:2021`, `A01:2021` as applicable).
+
+### FR-19 — Cornucopia: Digital-by-Default Harms (US-19)
+- FR-19.1 A dedicated page (`/frameworks/digital-harms`) shall display all Cornucopia `dbd-cards-1.0-en.yaml` cards, grouped by suit (SCO, ARC, AGE, TRU, POR).
+- FR-19.2 Each card shall render with a `DesignHarmBadge`, never the `SeverityBadge` used for technical threats — this deck has no CRITICAL/HIGH/MEDIUM/LOW severity, only a design-harm category.
+- FR-19.3 Each card shall display a `CrossReference` chip linking to OWASP A04:2021 Insecure Design, and, where the card concerns transparency of algorithms/criteria, to the CompTIA SecAI+ GRC/AI-Act topic list (DR-01.5).
+- FR-19.4 The page shall display a disclaimer banner stating that this deck models *service-design harms in public-sector digital services* (source: `digitalbenefits.uk`), not exploitable technical vulnerabilities, and must not be read as a CVE-style severity ranking.
+- FR-19.5 Cards shall be filterable by suit and searchable by description keyword, consistent with FR-12–FR-18.
+- FR-19.6 Polish translations of all SCO/ARC/AGE/TRU/POR card descriptions shall be reviewed by a native Polish speaker before merge, following the same i18n gate as FR-11.
 
 ---
 
@@ -132,7 +142,7 @@ ScalaShield 2026 is a security reference and interactive learning platform. It p
 ### SR-03 — XSS Prevention
 - SR-03.1 All Cornucopia card descriptions (`descriptionPl`, `descriptionEn`) rendered in the React UI shall be passed through `DOMPurify.sanitize()`.
 - SR-03.2 `dangerouslySetInnerHTML` shall never be used without DOMPurify wrapping (enforced by custom ESLint rule `no-raw-html`).
-- SR-03.3 Admin update endpoints (`PUT /api/v1/admin/threats/:id`) shall sanitize input via OWASP Java HTML Sanitizer before persisting.
+- SR-03.3 Admin update endpoints (`PUT /api/v1/admin/threats/:id`) shall sanitize input via `SafeHtml.sanitize()` — a custom pure-Scala allow-list sanitizer (PLAN.md D-14) — before persisting. No Java-branded sanitization library shall be used.
 - SR-03.4 `Content-Security-Policy` header shall set `default-src 'self'`; no `unsafe-inline` or `unsafe-eval`.
 
 ### SR-04 — Security Headers
@@ -267,6 +277,7 @@ ScalaShield 2026 is a security reference and interactive learning platform. It p
 - DR-01.8 Full Cornucopia Mobile App Edition v1.1 cards (PC, AA, NS, RS, CRM, CM suits).
 - DR-01.9 Full Cornucopia STRIDE EoP v5.0 cards (78 cards: SP, TA, RE, ID, DS, EP suits).
 - DR-01.10 Full Cornucopia MLSec v1.0 cards (52 cards: EMR, EIR, EOR, EDR suits).
+- DR-01.11 Full Digital-by-Default Harms v1.0 cards (SCO, ARC, AGE, TRU, POR, COR, WC suits), each with a reviewed Polish translation and a `CrossReference` row to OWASP A04:2021 Insecure Design.
 
 ### DR-02 — YAML Source-of-Truth
 - DR-02.1 Cornucopia cards shall be maintained as YAML files in `data/cornucopia/`.
@@ -284,7 +295,7 @@ ScalaShield 2026 is a security reference and interactive learning platform. It p
 | ID | Threat | Requirement |
 |---|---|---|
 | AC-01 | SQL injection via `?q=` | ZIO Quill parameterised query; Scalafix no-concat rule |
-| AC-02 | XSS via admin card update | OWASP HTML Sanitizer (server) + DOMPurify (client) |
+| AC-02 | XSS via admin card update | `SafeHtml` pure-Scala sanitizer (server) + DOMPurify (client) |
 | AC-03 | CSRF | Stateless JWT; `SameSite=Strict` cookie; no session |
 | AC-04 | JWT forgery | RS256 key pair; Wartremover prevents `null` signing key |
 | AC-05 | Bot scraping all card suits | ZIO STM rate limit 60 req/min; 429 + Retry-After |
@@ -298,6 +309,7 @@ ScalaShield 2026 is a security reference and interactive learning platform. It p
 | AC-13 | Supply-chain attack via npm/sbt dependency | sbt-dependency-check + npm audit + Trivy; fail on CVSS ≥ 7 |
 | AC-14 | SVG script injection in AAI diagrams | Server-side SVG generation; DOMPurify strips `<script>` |
 | AC-15 | Prompt injection via BotWarningModal content | BotWarningModal text is hardcoded i18n key; not from API |
+| AC-16 | Digital-by-Default Harms deck misread as a CVE-style severity list | `DesignHarmBadge` component is a distinct React component from `SeverityBadge` — no shared props allow a `dbd` card to render a CRITICAL/HIGH color; enforced by a component-level Vitest test |
 
 ---
 
@@ -314,6 +326,7 @@ ScalaShield 2026 is a security reference and interactive learning platform. It p
 | FR-16 | US-16 | D-07, D-12 | US-16 Playwright |
 | FR-17 | US-17 | D-07 | US-17 Playwright |
 | FR-18 | US-18 | D-08 (rate limit), D-11 | US-18 Playwright |
+| FR-19 | US-19 | D-10 (i18n review gate), D-06 | US-19 Playwright, AC-16 component test |
 | SR-02 | — | D-02 | AC-01 integration test |
 | SR-03 | — | D-05 | AC-02, AC-10 integration test |
 | SR-05 | — | D-08 | AC-05 integration test |
