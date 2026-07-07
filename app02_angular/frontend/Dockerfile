@@ -6,7 +6,7 @@ COPY . .
 RUN npm run build
 
 FROM nginx:1.27-alpine
-COPY --from=build /build/dist /usr/share/nginx/html
+COPY --from=build /build/dist/threatview/browser /usr/share/nginx/html
 # nginx.conf is bind-mounted by docker-compose.yml (../nginx/nginx.conf), not
 # baked in here, so the proxy config can be edited without a rebuild.
 EXPOSE 80

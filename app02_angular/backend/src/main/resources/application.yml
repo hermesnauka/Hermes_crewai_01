@@ -8,9 +8,9 @@ spring:
     name: threatview-backend
 
   datasource:
-    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:threatview}
-    username: ${DB_USER:threatview}
-    password: ${DB_PASSWORD:threatview}
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -49,12 +49,13 @@ springdoc:
 
 threatview:
   jwt:
-    secret: ${JWT_SECRET:dev-only-secret-change-me-threatview-2026-min-32-bytes}
+    secret: ${JWT_SECRET}
     expiration-minutes: 60
   admin:
-    username: ${ADMIN_USERNAME:admin}
-    # bcrypt hash of "changeme-dev-only" (verified round-trip) - override via ADMIN_PASSWORD_HASH in every real deployment
-    password-hash: ${ADMIN_PASSWORD_HASH:$2b$10$zQSot7Lxlrb5PdIg3SLzMu92L42rne/Rm29sgipNNYDoBVtQzmiju}
+    username: ${ADMIN_USERNAME}
+    # bcrypt hash of "changeme-dev-only___" (verified round-trip) - override via ADMIN_PASSWORD_HASH in every real deployment
+    password-hash: ${ADMIN_PASSWORD_HASH}
+
 
 logging:
   level:
