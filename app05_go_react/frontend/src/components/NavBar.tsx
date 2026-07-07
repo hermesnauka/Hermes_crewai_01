@@ -9,7 +9,7 @@ export default function NavBar() {
   return (
     <nav className="border-b border-slate-800 bg-slate-900">
       <div className="mx-auto flex max-w-6xl items-center gap-2 px-4 py-3">
-        <span className="mr-4 text-lg font-semibold text-white">SecureVision 2026</span>
+        <span className="mr-4 text-lg font-semibold text-white">GoSentry 2026</span>
         <NavLink to="/" className={linkClass} end>
           Panel
         </NavLink>

@@ -34,7 +34,7 @@ fi
 
 echo "== scalashield role/database =="
 "$PGBIN/psql.exe" -U securevision -h 127.0.0.1 -p 5432 -d postgres -c \
-    "DO \$\$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'scalashield') THEN CREATE ROLE scalashield LOGIN PASSWORD 'scalashield'; END IF; END \$\$;" >/dev/null 2>&1 || true
+    "DO \$\$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'scalashield') THEN CREATE ROLE scalashield LOGIN PASSWORD \${POSTGRES_PASSWORD}; END IF; END \$\$;" >/dev/null 2>&1 || true
 "$PGBIN/psql.exe" -U securevision -h 127.0.0.1 -p 5432 -d postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'scalashield'" 2>/dev/null | grep -q 1 \
     || "$PGBIN/psql.exe" -U securevision -h 127.0.0.1 -p 5432 -d postgres -c "CREATE DATABASE scalashield OWNER scalashield;" >/dev/null 2>&1
 echo "ready"
@@ -45,7 +45,7 @@ if curl -sf http://localhost:8080/api/v1/health >/dev/null 2>&1; then
 else
     (
         cd "$ROOT_DIR/backend"
-        export DB_HOST=127.0.0.1 DB_PORT=5432 DB_NAME=scalashield DB_USER=scalashield DB_PASSWORD=scalashield HTTP_PORT=8080
+        export DB_HOST=127.0.0.1 DB_PORT=5432 DB_NAME="${POSTGRES_DB}" DB_USER="${POSTGRES_USER}" DB_PASSWORD="${POSTGRES_PASSWORD}" HTTP_PORT=8080
         nohup sbt run > "$RUN_DIR/backend.log" 2>&1 &
         echo $! > "$RUN_DIR/backend.pid"
     )
