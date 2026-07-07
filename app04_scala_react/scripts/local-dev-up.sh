@@ -3,8 +3,9 @@
 #
 # docker-compose.yml is the real, portable way to run this project - use it
 # if Docker is installed. This script exists because Docker isn't installed
-# on THIS machine; it drives the same three pieces (Postgres, backend,
-# frontend) as standalone portable installs under C:\Users\krish\tools\
+# on THIS machine; it drives Postgres (shared instance across sibling apps -
+# see app01_react/scripts for why), the Scala/ZIO backend (sbt run), and the
+# Vite frontend as standalone portable installs under C:\Users\krish\tools\
 # instead of containers. The tool paths below are specific to this machine -
 # don't assume this script works unmodified anywhere else.
 set -euo pipefail
@@ -17,10 +18,10 @@ TOOLS="/c/Users/krish/tools"
 PGBIN="$TOOLS/pgsql/bin"
 PGDATA="C:\\Users\\krish\\tools\\pgdata"
 JAVA_HOME="$TOOLS/jdk-21.0.11+10"
-MAVEN_BIN="$TOOLS/apache-maven-3.9.9/bin"
+SBT_BIN="$TOOLS/sbt/bin"
 
 export JAVA_HOME
-export PATH="$JAVA_HOME/bin:$MAVEN_BIN:$PGBIN:$PATH"
+export PATH="$JAVA_HOME/bin:$SBT_BIN:$PGBIN:$PATH"
 
 echo "== Postgres =="
 if "$PGBIN/pg_isready.exe" -h 127.0.0.1 -p 5432 >/dev/null 2>&1; then
@@ -31,22 +32,29 @@ else
     echo "started"
 fi
 
-echo "== Backend (Spring Boot, :8080) =="
-if curl -sf http://localhost:8080/api/v1/frameworks >/dev/null 2>&1; then
+echo "== scalashield role/database =="
+"$PGBIN/psql.exe" -U securevision -h 127.0.0.1 -p 5432 -d postgres -c \
+    "DO \$\$ BEGIN IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'scalashield') THEN CREATE ROLE scalashield LOGIN PASSWORD 'scalashield'; END IF; END \$\$;" >/dev/null 2>&1 || true
+"$PGBIN/psql.exe" -U securevision -h 127.0.0.1 -p 5432 -d postgres -tc "SELECT 1 FROM pg_database WHERE datname = 'scalashield'" 2>/dev/null | grep -q 1 \
+    || "$PGBIN/psql.exe" -U securevision -h 127.0.0.1 -p 5432 -d postgres -c "CREATE DATABASE scalashield OWNER scalashield;" >/dev/null 2>&1
+echo "ready"
+
+echo "== Backend (ZIO HTTP, :8080) =="
+if curl -sf http://localhost:8080/api/v1/health >/dev/null 2>&1; then
     echo "already running"
 else
     (
         cd "$ROOT_DIR/backend"
-        export DB_HOST=127.0.0.1 DB_PORT=5432 DB_NAME=securevision DB_USER=securevision DB_PASSWORD=securevision
-        nohup mvn spring-boot:run > "$RUN_DIR/backend.log" 2>&1 &
+        export DB_HOST=127.0.0.1 DB_PORT=5432 DB_NAME=scalashield DB_USER=scalashield DB_PASSWORD=scalashield HTTP_PORT=8080
+        nohup sbt run > "$RUN_DIR/backend.log" 2>&1 &
         echo $! > "$RUN_DIR/backend.pid"
     )
-    echo "starting (PID $(cat "$RUN_DIR/backend.pid")), waiting for :8080 ..."
-    if timeout 90 bash -c 'until curl -sf http://localhost:8080/api/v1/frameworks >/dev/null 2>&1; do sleep 2; done'; then
+    echo "starting (PID $(cat "$RUN_DIR/backend.pid")), waiting for :8080 (first run compiles + resolves deps, can take a couple minutes) ..."
+    if timeout 180 bash -c 'until curl -sf http://localhost:8080/api/v1/health >/dev/null 2>&1; do sleep 3; done'; then
         echo "up"
     else
         echo "TIMED OUT - tail of $RUN_DIR/backend.log:"
-        tail -60 "$RUN_DIR/backend.log"
+        tail -80 "$RUN_DIR/backend.log"
         exit 1
     fi
 fi
@@ -73,6 +81,6 @@ fi
 echo
 echo "Frontend:    http://localhost:5173"
 echo "Backend API: http://localhost:8080/api/v1/frameworks"
-echo "Swagger UI:  http://localhost:8080/swagger-ui.html"
+echo "Health:      http://localhost:8080/api/v1/health"
 echo "Logs:        $RUN_DIR/{postgres,backend,frontend}.log"
 echo "Stop with:   scripts/local-dev-down.sh"

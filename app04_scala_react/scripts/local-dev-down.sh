@@ -4,10 +4,8 @@
 #
 # Kills by the port's actual Windows PID (via netstat + taskkill), not by the
 # PID file bash's `$!` recorded. On this Git Bash/MSYS setup `$!` after
-# `npm run dev &` is the npm wrapper's PID, not the real node/vite process -
-# killing it leaves the actual server running. `mvn spring-boot:run` didn't
-# show this problem when checked manually, but port-based kill is used for
-# both anyway so this script doesn't depend on that being reliable.
+# `npm run dev &`/`sbt run &` is the npm/sbt wrapper's PID, not the real
+# node/JVM process - killing it leaves the actual server running.
 set -uo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

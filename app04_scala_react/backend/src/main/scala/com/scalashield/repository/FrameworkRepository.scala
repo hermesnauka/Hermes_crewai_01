@@ -11,6 +11,7 @@ import javax.sql.DataSource
   * naming strategy infers the right table without an explicit querySchema. */
 object FrameworkRepository:
   import Ctx._
+  import io.getquill._
 
   def findAll: ZIO[DataSource, SQLException, List[Framework]] =
     Ctx.run(query[Framework])

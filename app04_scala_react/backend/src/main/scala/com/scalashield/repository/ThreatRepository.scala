@@ -39,6 +39,7 @@ final case class ThreatFilter(
 
 object ThreatRepository:
   import Ctx._
+  import io.getquill._
 
   private inline def threatSchema = querySchema[ThreatRow]("threat")
 
@@ -49,17 +50,17 @@ object ThreatRepository:
     * string-concatenated SQL is still not possible here.
     */
   def search(filter: ThreatFilter): ZIO[DataSource, SQLException, List[ThreatRow]] =
-    val base = dynamicQuerySchema[ThreatRow]("threat")
-    val filtered = base
-      .filterOpt(filter.frameworkId)((row, v) => quote(row.frameworkId == lift(v)))
-      .filterOpt(filter.severity)((row, v) => quote(row.severity == lift(v.toUpperCase)))
-      .filterOpt(filter.stride)((row, v) => quote(row.stride like lift(s"%${v.toUpperCase}%")))
-      .filterOpt(filter.category)((row, v) => quote(row.category == lift(v)))
-      .filterOpt(filter.tag)((row, v) => quote(row.tags like lift(s"%$v%")))
-      .filterOpt(filter.q)((row, v) =>
-        quote(row.title.toLowerCase.like(lift(s"%${v.toLowerCase}%")) || row.description.toLowerCase.like(lift(s"%${v.toLowerCase}%")))
-      )
-    Ctx.run(filtered)
+    var q = dynamicQuerySchema[ThreatRow]("threat")
+    filter.frameworkId.foreach(v => q = q.filter(row => quote(row.frameworkId == lift(v))))
+    filter.severity.foreach(v => q = q.filter(row => quote(row.severity == lift(v.toUpperCase))))
+    filter.stride.foreach(v => q = q.filter(row => quote(row.stride like lift(s"%${v.toUpperCase}%"))))
+    filter.category.foreach(v => q = q.filter(row => quote(row.category == lift(v))))
+    filter.tag.foreach(v => q = q.filter(row => quote(row.tags like lift(s"%$v%"))))
+    filter.q.foreach { v =>
+      val pattern = s"%${v.toLowerCase}%"
+      q = q.filter(row => quote(row.title.toLowerCase.like(lift(pattern)) || row.description.toLowerCase.like(lift(pattern))))
+    }
+    Ctx.run(q)
 
   def findById(id: UUID): ZIO[DataSource, SQLException, Option[ThreatRow]] =
     Ctx.run(threatSchema.filter(t => t.id == lift(id))).map(_.headOption)

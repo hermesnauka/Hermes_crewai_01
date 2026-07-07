@@ -1,5 +1,9 @@
 ThisBuild / version      := "0.1.0-phase1"
 ThisBuild / scalaVersion := "3.3.8"
+// zio-http pulls zio-schema-json (wants zio-json 0.9.1); quill-jdbc-zio wants
+// 0.7.1. Newer zio-json is compatible for basic DeriveJsonCodec usage here -
+// downgrade sbt's eviction check from hard error to warning.
+ThisBuild / evictionErrorLevel := Level.Warn
 
 lazy val root = (project in file("."))
   .settings(
@@ -18,4 +22,14 @@ lazy val root = (project in file("."))
       "dev.zio"        %% "zio-test-sbt"          % "2.1.26" % Test,
     ),
     testFrameworks += new TestFramework("zio.test.sbt.ZTestFramework"),
+    assembly / mainClass := Some("com.scalashield.Main"),
+    assembly / assemblyMergeStrategy := {
+      // JDBC drivers (and other SPI-based libs) register themselves via
+      // META-INF/services/* - a blanket META-INF discard silently breaks
+      // DriverManager's lookup at runtime even though the jar builds fine.
+      case PathList("META-INF", "services", xs @ _*) => MergeStrategy.concat
+      case PathList("META-INF", xs @ _*)              => MergeStrategy.discard
+      case "module-info.class"                        => MergeStrategy.discard
+      case _                                           => MergeStrategy.first
+    },
   )

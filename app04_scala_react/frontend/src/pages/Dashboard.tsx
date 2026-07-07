@@ -23,7 +23,7 @@ export default function Dashboard() {
   return (
     <div className="space-y-8">
       <section>
-        <h1 className="text-3xl font-bold text-white">SecureVision 2026</h1>
+        <h1 className="text-3xl font-bold text-white">ScalaShield 2026</h1>
         <p className="mt-2 max-w-2xl text-slate-400">
           Interaktywna baza zagrożeń, mitigacji i przykładów kodu w OWASP, MITRE ATLAS i CompTIA SecAI+.
         </p>

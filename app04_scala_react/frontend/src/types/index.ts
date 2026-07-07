@@ -1,4 +1,4 @@
-// Mirrors backend DTOs in com.securevision.dto - keep in sync by hand for now;
+// Mirrors backend DTOs in com.scalashield.model - keep in sync by hand for now;
 // Phase 4+ could generate these from the OpenAPI spec instead.
 
 export interface Framework {
