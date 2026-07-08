@@ -85,6 +85,6 @@ fi
 echo
 echo "Frontend:    http://localhost:5173"
 echo "Backend API: http://localhost:8080/api/v1/frameworks"
-echo "Swagger UI:  http://localhost:8080/swagger-ui.html"
+echo "Health:      http://localhost:8080/health"
 echo "Logs:        $RUN_DIR/{postgres,backend,frontend}.log"
 echo "Stop with:   scripts/local-dev-down.sh"
