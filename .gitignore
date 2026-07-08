@@ -1,5 +1,7 @@
 
 tmp/
+.claude/
+.local-dev/
 
 ######### Java
 
