@@ -57,7 +57,21 @@ No Docker on this machine. Use `scripts/local-dev-up.sh` / `scripts/local-dev-do
 (portable installs under `C:\Users\krish\tools\` + `C:\ghcup\`, not containers — see
 comments in those scripts). Postgres/Redis/GHCup paths are specific to this machine.
 
-## Environment-specific gotcha (worth knowing before you fight it again)
+## Environment-specific gotchas (worth knowing before you fight them again)
+
+This machine runs one shared, Docker-less Postgres instance (started by
+`scripts/local-dev-up.sh`) for every `app0N_*` course project, not one per
+project. `app01_react`'s Java/Flyway backend already owns a database named
+`securevision` on that shared instance, with its own schema (comma-joined
+`stride`/`tags` TEXT columns, `flyway_schema_history`). This backend uses a
+**separate database named `haskshield`** (same `securevision` role/password)
+to avoid colliding with it — created once via `createdb -O securevision
+haskshield`. `scripts/local-dev-up.sh` already points `DB_NAME` at
+`haskshield` for this reason; don't "fix" it back to `securevision`. This is
+purely a shared-local-Postgres artifact — a real Docker Compose deployment
+gives each app its own container + volume, so `docker-compose.yml` can (and
+does) still say `securevision` without any conflict.
+
 
 This machine's Norton Antivirus does TLS interception (root cert:
 `C:\Users\krish\tools\norton-root.cer` / `.pem`). MSYS2's `pacman`/`curl` (bundled with

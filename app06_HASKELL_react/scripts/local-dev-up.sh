@@ -38,7 +38,16 @@ if curl -sf http://localhost:8080/health >/dev/null 2>&1; then
 else
     (
         cd "$ROOT_DIR/backend"
-        export DB_HOST=127.0.0.1 DB_PORT=5432 DB_NAME=securevision DB_USER=securevision DB_PASSWORD=securevision
+        # DB_NAME is "haskshield", NOT "securevision" - this machine runs one
+        # shared Postgres instance for every app0N_* course project, and
+        # app01_react's Java/Flyway backend already owns a "securevision"
+        # database with its OWN schema (comma-joined stride/tags columns,
+        # flyway_schema_history). Reusing that name here would collide with
+        # app01's tables the first time this backend's migrations run. In a
+        # real Docker Compose deployment each app gets its own container +
+        # volume, so this collision is specific to this shared, Docker-less
+        # local setup - see backend/CLAUDE.md.
+        export DB_HOST=127.0.0.1 DB_PORT=5432 DB_NAME=haskshield DB_USER=securevision DB_PASSWORD=securevision
         # Dev-only defaults, matching ../.env's values. .env itself uses
         # docker-compose's "$$" escaping for a literal "$" (e.g.
         # ADMIN_PASSWORD_HASH=$$2b$$10$$...); bash would instead expand "$$"
