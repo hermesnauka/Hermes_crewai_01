@@ -3,6 +3,7 @@ import NavBar from '@/components/NavBar'
 import Dashboard from '@/pages/Dashboard'
 import Frameworks from '@/pages/Frameworks'
 import FrameworkDetail from '@/pages/FrameworkDetail'
+import Threats from '@/pages/Threats'
 
 export default function App() {
   return (
@@ -13,6 +14,7 @@ export default function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/frameworks" element={<Frameworks />} />
           <Route path="/frameworks/:code" element={<FrameworkDetail />} />
+          <Route path="/threats" element={<Threats />} />
         </Routes>
       </main>
     </div>

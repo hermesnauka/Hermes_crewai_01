@@ -17,13 +17,13 @@ export default function Dashboard() {
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault()
-    if (query.trim()) navigate(`/frameworks?q=${encodeURIComponent(query.trim())}`)
+    if (query.trim()) navigate(`/threats?q=${encodeURIComponent(query.trim())}`)
   }
 
   return (
     <div className="space-y-8">
       <section>
-        <h1 className="text-3xl font-bold text-white">SecureVision 2026</h1>
+        <h1 className="text-3xl font-bold text-white">HaskShield 2026</h1>
         <p className="mt-2 max-w-2xl text-slate-400">
           Interaktywna baza zagrożeń, mitigacji i przykładów kodu w OWASP, MITRE ATLAS i CompTIA SecAI+.
         </p>
