@@ -1,10 +1,10 @@
 # KotlinGuard 2026 — Kotlin/Android implementation (app12_kotlin_android)
 
-One of twelve parallel course implementations of the same product ("SecureVision": browse
-security frameworks/threats, one hardcoded admin login). This directory is the
-**native Android** one — Kotlin, Jetpack Compose, Room. See `PLAN.md`, `requirements.md`,
-`SDLC_analysis.md`, and `user_stories+tests.md` for the full 19-user-story aspirational
-end state.
+The native Android implementation — Kotlin, Jetpack Compose, Room. See
+`../CLAUDE.md` for the sibling list — this app is one of the two (with
+`app11_swift_ios`) that deliberately don't follow the shared API contract
+documented there. See `PLAN.md`, `requirements.md`, `SDLC_analysis.md`, and
+`user_stories+tests.md` for the full 19-user-story aspirational end state.
 
 ## Nothing is built yet
 

@@ -1,12 +1,13 @@
 # SwiftGuard 2026 — native iOS implementation (app11_swift_ios)
 
-One of twelve parallel course implementations of the same product. This one is
-**pure native iOS**: Swift 6, SwiftUI, SwiftData. No code exists yet — no
-Xcode project, no `.swift` files, nothing scaffolded. This directory currently
-holds only `PLAN.md`, `requirements.md`, `SDLC_analysis.md`, and
+Pure native iOS: Swift 6, SwiftUI, SwiftData. No code exists yet — no Xcode
+project, no `.swift` files, nothing scaffolded. This directory currently holds
+only `PLAN.md`, `requirements.md`, `SDLC_analysis.md`, and
 `user_stories+tests.md`, describing a large aspirational 19-user-story end
 state (§15 of `PLAN.md`). Building from scratch starts with `xcodegen`/Xcode's
-"New Project", not by editing existing sources.
+"New Project", not by editing existing sources. See `../CLAUDE.md` for the
+sibling list — this app is one of the two (with `app12_kotlin_android`) that
+deliberately don't follow the shared API contract documented there.
 
 ## This is NOT a client of app01's REST API — don't build an API client
 

@@ -30,6 +30,12 @@ node_modules/
 target/
 dist/
 
+# tsc -b emits these alongside vite.config.ts because tsconfig.node.json is
+# composite (composite projects must emit) -- generated duplicates, not source.
+frontend/vite.config.js
+frontend/vite.config.d.ts
+frontend/*.tsbuildinfo
+
 
 
 ######### Python

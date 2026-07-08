@@ -1,33 +1,19 @@
 # GoSentry 2026 — Go/chi implementation (app05_go_react)
 
-One of six parallel course implementations of the same product (Java×2, Python/Django,
-Scala/ZIO, **Go**, Haskell). This is the Go one: standard-library-first backend with
-`chi` v5 routing, `pgx` v5 driver, and `sqlc` for compile-time-checked SQL. React/TS
-frontend, same shape as `app01_react`/`app04_scala_react`.
+The Go implementation: standard-library-first backend with `chi` v5 routing,
+`pgx` v5 driver, and `sqlc` for compile-time-checked SQL. React/TS frontend,
+same shape as app01/app06. See `../CLAUDE.md` for the sibling list, canonical
+API contract, and shared local-dev setup — app01 remains the contract of
+record.
 
 ## Scope: this is Phase-1 parity, not the full vision
 
-`PLAN.md`, `requirements.md`, `SDLC_analysis.md`, and `user_stories+tests.md` describe a
-much larger 19-user-story end state (six OWASP Cornucopia card decks, i18n, Redis-backed
-rate limiting, a `river` job queue for CSV/PDF export, `bluemonday` sanitization for admin
-CRUD, `swaggo/swag` API docs). **None of that is built yet.** What exists today is
-frameworks + threats (read-only) and one hardcoded admin login — mirroring
-`../app01_react`'s own Phase-1 skeleton. Read `PLAN.md` for the destination, but don't
-assume anything past the API contract below is implemented.
-
-## API contract (source of truth: `../app01_react/backend/src/main/java/com/securevision/`)
-
-```
-POST /api/v1/auth/login        {username, password} -> {token, tokenType:"Bearer", role:"ADMIN"} | 401
-GET  /api/v1/frameworks        -> Framework[]
-GET  /api/v1/frameworks/:code  -> Framework | 404
-GET  /api/v1/threats           ?frameworkCode&severity&stride&tag&q&page&size&sort -> Page<ThreatSummary>
-GET  /api/v1/threats/:id       -> ThreatDetail | 404
-GET  /health                   -> {"status":"UP"}
-```
-`Page<T> = {content, totalElements, totalPages, number, size}`. Error body on 4xx:
-`{timestamp, status, error, message}`. If you're adding a field or endpoint, check
-`../app01_react`'s Java source first — it's the contract of record.
+`PLAN.md` describes a much larger 19-user-story end state (six OWASP Cornucopia
+card decks, i18n, Redis-backed rate limiting, a `river` job queue for CSV/PDF
+export, `bluemonday` sanitization for admin CRUD, `swaggo/swag` API docs).
+**None of that is built yet.** What exists today is frameworks + threats
+(read-only) and one hardcoded admin login — mirroring app01's own Phase-1
+skeleton.
 
 ## Package layout
 
@@ -75,11 +61,12 @@ any `.sql` file, run `cd backend && sqlc generate` and re-check in the diff.
 
 ## Running locally
 
-No Docker on this machine — use `scripts/local-dev-up.sh` / `scripts/local-dev-down.sh`
-(portable Go/goose/sqlc installs under `C:\Users\krish\tools\`, not containers). Where
-Docker *is* available: `docker compose up --build` runs `migrate` → `seed` → `api`/`worker`
-via `depends_on: condition: service_completed_successfully`; `cmd/api`/`cmd/worker` ship
-as `FROM scratch` static binaries with `CGO_ENABLED=0`.
+No Docker on this machine (see `../CLAUDE.md`) — use `scripts/local-dev-up.sh` /
+`scripts/local-dev-down.sh` (portable Go/goose/sqlc installs under
+`C:\Users\krish\tools\`). Where Docker *is* available: `docker compose up --build`
+runs `migrate` → `seed` → `api`/`worker` via `depends_on: condition:
+service_completed_successfully`; `cmd/api`/`cmd/worker` ship as `FROM scratch`
+static binaries with `CGO_ENABLED=0`.
 
 **Windows gotcha:** `go run ./cmd/api` execs a temp binary as a *child* process; killing
 the parent `go.exe` PID (e.g. via `netstat`-found PID) leaves the child still listening.

@@ -1,10 +1,9 @@
 # RustBastion 2026 — Rust/axum implementation (app07_rust_react)
 
-One of twelve parallel course implementations of the same product ("SecureVision" /
-here "RustBastion"). This is the Rust one: intended `axum` + `sqlx` + PostgreSQL
-backend, React/TS frontend. See sibling `app01_react` (Java/Spring Boot) for the
-reference implementation and `app06_HASKELL_react/CLAUDE.md` for a worked example of
-this same file once its backend exists.
+The Rust implementation: intended `axum` + `sqlx` + PostgreSQL backend,
+React/TS frontend. See `../CLAUDE.md` for the sibling list, canonical API
+contract, and shared local-dev setup; see `app06_HASKELL_react/CLAUDE.md` for
+a worked example of this same file once a backend exists here.
 
 ## Current state: backend not started
 
@@ -15,27 +14,16 @@ There is **no `backend/` directory, no `Cargo.toml`, no Rust code, no database, 
 `scripts/local-dev-up.sh`/`local-dev-down.sh` exist but — check before trusting them —
 likely only stand up the frontend/proxy, not an API, since none has been written yet.
 
-`PLAN.md`, `requirements.md`, `SDLC_analysis.md`, and `user_stories+tests.md` describe a
-large 19-user-story end state (6 card decks, i18n, RS256 JWT roles, `apalis` background
-jobs, admin CRUD, `utoipa`/Swagger). **None of it is built.** Treat this whole app as
-"frontend-only, backend at zero," not as a partially-built backend — there is nothing to
-extend yet, only a plan to start from.
+`PLAN.md` describes a large 19-user-story end state (6 card decks, i18n, RS256 JWT
+roles, `apalis` background jobs, admin CRUD, `utoipa`/Swagger). **None of it is built.**
+Treat this whole app as "frontend-only, backend at zero," not as a partially-built
+backend — there is nothing to extend yet, only a plan to start from.
 
-## Target Phase-1 API contract (source of truth: `../app01_react/backend/src/main/java/com/securevision/`)
+## Frontend already expects the canonical contract
 
-```
-POST /api/v1/auth/login        {username, password} -> {token, tokenType:"Bearer", role:"ADMIN"} | 401
-GET  /api/v1/frameworks        -> Framework[]
-GET  /api/v1/frameworks/:code  -> Framework | 404
-GET  /api/v1/threats           ?frameworkCode&severity&stride&tag&q&page&size&sort -> Page<ThreatSummary>
-GET  /api/v1/threats/:id       -> ThreatDetail | 404
-GET  /health                   -> {"status":"UP"}
-```
-`Page<T> = {content, totalElements, totalPages, number, size}`. Error body on 4xx:
-`{timestamp, status, error, message}`. `frontend/src/types/index.ts` is already written
-against this shape — read it before designing Rust response DTOs so the two don't drift.
-Before adding any field or endpoint, check app01's Java source; it's the contract of
-record for anything Phase-1 claims to mirror, not this app's own `PLAN.md`.
+`frontend/src/types/index.ts` is already written against the canonical
+contract's shape (see `../CLAUDE.md`) — read it before designing Rust response
+DTOs so the two don't drift.
 
 ## What PLAN.md commits to, once backend work starts
 
@@ -49,16 +37,12 @@ record for anything Phase-1 claims to mirror, not this app's own `PLAN.md`.
 | Testing | `#[tokio::test]` + `proptest` + `axum-test`/`reqwest` | — |
 | Lint/SCA | `clippy -D warnings`, `cargo-geiger`, `cargo audit`, `cargo-deny` | — |
 
-**Likely deviation to watch for, before you build it:** app06's real backend found that
-app01's actual `JwtService` uses HS256 (`Keys.hmacShaKeyFor`), not the RS256 PLAN.md's
-D-04 assumes — app01 never had an RS256 key pair. If Phase-1 here is meant to mirror
-app01 (per this app's own stated pattern), expect the same correction: HS256 with a
-shared `JWT_SECRET`, not RS256, unless a deliberate decision to diverge from app01 is
-made and recorded here. Don't implement RS256 against PLAN.md without checking app01's
-actual `JwtService` first — same for `sqlx migrate` vs. app01's Flyway migrations, and
-for `TEXT[]` vs. app01's comma-joined `TEXT` columns (`stride`/`tags`/`cve_references`) —
-these are exactly the kind of "aspirational plan vs. what app01 actually does" gaps
-`app06_HASKELL_react/CLAUDE.md` had to document after the fact.
+**Deviation already known, per `../CLAUDE.md`:** PLAN.md assumes RS256 JWT;
+app01's actual auth is HS256 with a shared secret. Don't implement RS256
+without deciding, and recording here, that this app deliberately diverges from
+app01 — the same caution applies to `sqlx migrate` vs. app01's Flyway
+migrations, and to `TEXT[]` vs. app01's comma-joined `TEXT` columns
+(`stride`/`tags`/`cve_references`).
 
 ## Before writing the first route
 
@@ -69,4 +53,4 @@ these are exactly the kind of "aspirational plan vs. what app01 actually does" g
 3. Decide, and record here, whether Phase-1 follows app01 exactly (HS256, comma-joined
    text columns) or deliberately diverges (RS256, native `TEXT[]`) — don't let PLAN.md's
    aspirational D-04 silently become the implementation without that decision being made
-   explicitly, the way app06 had to correct for.
+   explicitly.

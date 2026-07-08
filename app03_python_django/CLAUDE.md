@@ -1,11 +1,11 @@
 # ThreatCompass 2026 — Django implementation (app03_python_django)
 
-One of the parallel course implementations of SecureVision/ThreatCompass. This is the
-Python one: **entirely Django, end to end** — no second backend language, and
-deliberately **no separate SPA**. Django serves its own frontend via server-rendered
-templates (+ HTMX/Alpine.js planned for later phases). See `PLAN.md` §0 and `README.md`
-("Why there's no `backend/`/`frontend/` split") — confirmed by reading both; this is a
-documented deliberate choice, not an oversight.
+The Python implementation: **entirely Django, end to end** — no second backend
+language, and deliberately **no separate SPA**. Django serves its own frontend
+via server-rendered templates (+ HTMX/Alpine.js planned for later phases). See
+`PLAN.md` §0 and `README.md` ("Why there's no `backend/`/`frontend/` split") —
+confirmed by reading both; this is a documented deliberate choice, not an
+oversight. See `../CLAUDE.md` for the sibling list and shared local-dev setup.
 
 ## Known deliberate deviations from sibling convention (don't "fix" these back)
 
@@ -32,9 +32,10 @@ Celery-backed CSV/PDF export, cross-framework matrix, code samples in 5 language
 `threats` apps with working models/views/serializers; `cards`, `matrix`, `export`,
 `integrity`, `search`, `accounts` apps exist as Django app scaffolding (mostly just
 `apps.py` + migrations, no real views yet — `search` has no models or views at all).
-Read `PLAN.md` for the destination; don't assume anything past what's below is wired up.
+Read `PLAN.md` for the destination, but don't assume anything past what's below is
+wired up.
 
-## Actual API contract as implemented (NOT app01's shape — verify before assuming parity)
+## Actual API contract as implemented (NOT app01's canonical shape — see `../CLAUDE.md`)
 
 This app's DRF endpoints exist but use **different param/path conventions** than
 app01's canonical contract (`app01_react/backend/.../com/securevision/`):
@@ -67,11 +68,12 @@ app's models exist but are empty.
 ## Running the stack locally
 
 `docker compose up --build` (Postgres 16, Redis 7, Django/Gunicorn, Celery worker+beat
-idle, nginx) — home at `:8081`, API direct at `:8000`. This machine has no Docker;
-use `scripts/local-dev-up.sh` / `scripts/local-dev-down.sh` instead (shared Postgres
-across sibling apps, Celery skipped since no real tasks run yet). `pip install -e .`
-fails here with a setuptools flat-layout discovery error — install deps directly per
-`Dockerfile` instead, don't "fix" the `pyproject.toml` layout to force editable installs.
+idle, nginx) — home at `:8081`, API direct at `:8000`. This machine has no Docker (see
+`../CLAUDE.md`); use `scripts/local-dev-up.sh` / `scripts/local-dev-down.sh` instead
+(shared Postgres across sibling apps, Celery skipped since no real tasks run yet).
+`pip install -e .` fails here with a setuptools flat-layout discovery error — install
+deps directly per `Dockerfile` instead, don't "fix" the `pyproject.toml` layout to force
+editable installs.
 
 Rebuild Tailwind after template edits: standalone CLI (no Node), see README's exact
 command — `tailwindcss -i backend_django/static/css/input.css -o .../output.css --minify`.

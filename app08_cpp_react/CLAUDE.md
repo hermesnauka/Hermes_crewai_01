@@ -1,9 +1,10 @@
 # CppCitadel 2026 — C++/Drogon implementation (app08_cpp_react)
 
-One of twelve parallel course implementations of the same product ("SecureVision"),
-each in a different stack. This is the C++ one — included deliberately as the
-**counter-example**: no borrow checker, no macro-checked SQL, no derive-based schema
-validation. See `PLAN.md` §0 for the full "what C++ doesn't give you for free" framing.
+The C++ implementation — included deliberately as the **counter-example**: no
+borrow checker, no macro-checked SQL, no derive-based schema validation. See
+`PLAN.md` §0 for the full "what C++ doesn't give you for free" framing, and
+`../CLAUDE.md` for the sibling list, canonical API contract, and shared
+local-dev setup.
 
 ## Current state: backend does not exist yet
 
@@ -21,22 +22,10 @@ adapted. `.local-dev/backend.log` is a leftover Spring Boot log from that copy, 
 evidence of any C++ backend having run. Don't trust either file; rewrite the script
 once there's an actual C++ binary to launch.
 
-## Target API contract (source of truth: `../app01_react/backend/src/main/java/com/securevision/`)
+## Frontend already expects the canonical contract
 
-```
-POST /api/v1/auth/login        {username, password} -> {token, tokenType:"Bearer", role:"ADMIN"} | 401
-GET  /api/v1/frameworks        -> Framework[]
-GET  /api/v1/frameworks/:code  -> Framework | 404
-GET  /api/v1/threats           ?frameworkCode&severity&stride&tag&q&page&size&sort -> Page<ThreatSummary>
-GET  /api/v1/threats/:id       -> ThreatDetail | 404
-GET  /health                   -> {"status":"UP"}
-```
-`Page<T> = {content, totalElements, totalPages, number, size}` — the frontend's
-`frontend/src/types/*.ts` is already written against this shape; don't change it
-without updating the frontend. Error body on 4xx: `{timestamp, status, error, message}`.
-Before writing a controller/route, read app01's Java source for the field the route
-returns — it's the contract of record, not `PLAN.md`'s aspirational D-04 JWT/variant
-design.
+`frontend/src/types/*.ts` is already written against the canonical contract's
+shape (see `../CLAUDE.md`) — don't change it without updating the frontend.
 
 ## Planned stack (decided in PLAN.md §2, nothing built against it yet)
 
@@ -47,8 +36,8 @@ design.
   PLAN.md hasn't committed to one yet (§5.7/appendix), decide this before scaffolding
 - **DB access**: `libpqxx` (parameterized queries) + `sqlpp11` for the subset of
   hot-path queries that want compile-time query-shape checking; Postgres 16
-- **Auth**: `jwt-cpp` doing RS256 (PLAN.md D-04) — note app01's actual `JwtService`
-  uses HS256 with a shared secret, not a key pair; resolve that mismatch before
+- **Auth**: `jwt-cpp` doing RS256 (PLAN.md D-04) — per `../CLAUDE.md`, app01's actual
+  auth is HS256 with a shared secret, not a key pair; resolve that mismatch before
   implementing, don't silently "fix" the contract's actual behavior back to RS256
 - **Password hashing**: `libsodium` Argon2id (never hand-rolled)
 - **JSON / YAML / logging**: `nlohmann::json`, `yaml-cpp` (hand-written unknown-key

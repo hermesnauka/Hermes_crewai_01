@@ -47,17 +47,17 @@ else
         # real Docker Compose deployment each app gets its own container +
         # volume, so this collision is specific to this shared, Docker-less
         # local setup - see backend/CLAUDE.md.
-        export DB_HOST=127.0.0.1 DB_PORT=5432 DB_NAME=haskshield DB_USER=securevision DB_PASSWORD=securevision
+        export DB_HOST=127.0.0.1 DB_PORT=5432 DB_NAME=haskshield DB_USER="${POSTGRES_USER}" DB_PASSWORD="${POSTGRES_PASSWORD}"
         # Dev-only defaults, matching ../.env's values. .env itself uses
         # docker-compose's "$$" escaping for a literal "$" (e.g.
-        # ADMIN_PASSWORD_HASH=$$2b$$10$$...); bash would instead expand "$$"
+        # ADMIN_PASSWORD_HASH=...); bash would instead expand "$$"
         # to the current shell's PID if this file were sourced directly, so
         # these are hardcoded here (single-quoted, no expansion) same as the
         # DB_* vars above rather than parsed out of .env.
         export JWT_SECRET='dev-only-secret-change-me-securevision-2026-min-32-bytes'
         export JWT_EXPIRATION_MINUTES=60
         export ADMIN_USERNAME='admin'
-        export ADMIN_PASSWORD_HASH='$2b$10$zQSot7Lxlrb5PdIg3SLzMu92L42rne/Rm29sgipNNYDoBVtQzmiju'
+        export ADMIN_PASSWORD_HASH="${ADMIN_PASSWORD_HASH}"
         nohup cabal run api > "$RUN_DIR/backend.log" 2>&1 &
         echo $! > "$RUN_DIR/backend.pid"
     )

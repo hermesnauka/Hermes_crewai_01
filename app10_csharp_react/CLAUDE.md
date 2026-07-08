@@ -1,9 +1,8 @@
 # SharpGuard 2026 — C#/.NET implementation (app10_csharp_react)
 
-One of twelve parallel course implementations of the same product (SecureVision — a
-threat-modeling reference app). This is the C#/.NET one, comparing .NET 9 against
-Java/Spring (`app01_react`, the reference), Go, Rust, Haskell, Scala, C++, and others.
-React/TS frontend, matching the pattern of most siblings.
+The C#/.NET one, comparing .NET 9 against the other backend stacks. React/TS
+frontend, matching the pattern of most siblings. See `../CLAUDE.md` for the
+sibling list, canonical API contract, and shared local-dev setup.
 
 ## Scope: backend has NOT been started
 
@@ -16,19 +15,10 @@ Do not assume any backend behavior described in those docs exists; treat this wh
 directory's backend as greenfield. When you do start it, mirror `app01_react`'s Java
 source for behavior, not this app's own `PLAN.md` prose, wherever the two disagree.
 
-## Target API contract (Phase-1 parity — source of truth: `../app01_react/backend/src/main/java/com/securevision/`)
+## Contract-shape note
 
-```
-POST /api/v1/auth/login        {username, password} -> {token, tokenType:"Bearer", role:"ADMIN"} | 401
-GET  /api/v1/frameworks        -> Framework[]
-GET  /api/v1/frameworks/:code  -> Framework | 404
-GET  /api/v1/threats           ?frameworkCode&severity&stride&tag&q&page&size&sort -> Page<ThreatSummary>
-GET  /api/v1/threats/:id       -> ThreatDetail | 404
-GET  /health                   -> {"status":"UP"}
-```
-`Page<T> = {content, totalElements, totalPages, number, size}` — the frontend's
-`frontend/src/types/` is presumably written against this shape; verify before changing
-it. Error body on 4xx: `{timestamp, status, error, message}`.
+Frontend's `frontend/src/types/` is presumably written against the canonical
+contract's shape (see `../CLAUDE.md`) — verify before changing it.
 
 ## Planned backend stack (per `PLAN.md` §2 — not yet implemented)
 
@@ -49,10 +39,9 @@ it. Error body on 4xx: `{timestamp, status, error, message}`.
 - Native AOT publish (`dotnet publish -p:PublishAot=true`) is the intended deployment
   target (D-06) — a static, JIT-free executable, comparable to the Go/Rust siblings'
   static binaries. This constrains reflection-heavy library choices from day one.
-- JWT auth is planned as RS256 (`PLAN.md` D-nothing-explicit beyond §2) — but note
-  `app06_HASKELL_react/CLAUDE.md` flags that app01's *actual* `JwtService` implementation
-  is HS256 with a shared secret, not the RS256 its own PLAN.md describes. Check app01's
-  real code, not its PLAN.md, before committing to RS256 here.
+- JWT auth is planned as RS256 (`PLAN.md` §2) — per `../CLAUDE.md`, app01's actual
+  `JwtService` is HS256 with a shared secret, not RS256. Check app01's real code, not
+  its PLAN.md, before committing to RS256 here.
 
 ## Framework-native tooling this plan deliberately leans on (instead of third-party)
 

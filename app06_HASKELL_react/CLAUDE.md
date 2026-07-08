@@ -1,36 +1,17 @@
 # HaskShield 2026 — Haskell/servant implementation (app06_HASKELL_react)
 
-One of six parallel course implementations of the same product (Java×2, Python/Django,
-Scala/ZIO, Go, **Haskell**). This is the Haskell one: `servant` + `hasql` backend,
-React/TS frontend. See `backend/CLAUDE.md` and `frontend/CLAUDE.md` for stack-specific
-detail.
+The Haskell implementation: `servant` + `hasql` backend, React/TS frontend. See
+`backend/CLAUDE.md` and `frontend/CLAUDE.md` for stack-specific detail, and
+`../CLAUDE.md` for the sibling list, canonical API contract, and shared
+local-dev setup.
 
 ## Scope: this is Phase-1 parity, not the full vision
 
-`PLAN.md`, `requirements.md`, `SDLC_analysis.md`, and `user_stories+tests.md` in this
-directory describe a much larger 19-user-story end state (6 threat-card decks, i18n,
-JWT roles, async export jobs, admin CRUD, cross-framework matrix). **None of that is
-built yet.** What exists today deliberately mirrors `../app01_react`'s backend, which is
-itself only a Phase-1 skeleton: frameworks + threats (read-only), one hardcoded admin
-login, 4 seeded frameworks, ~33 threats. Read `PLAN.md` for the destination, but don't
-assume anything past the API contract below is implemented.
-
-## API contract (source of truth: `../app01_react/backend/src/main/java/com/securevision/`)
-
-```
-POST /api/v1/auth/login        {username, password} -> {token, tokenType:"Bearer", role:"ADMIN"} | 401
-GET  /api/v1/frameworks        -> Framework[]
-GET  /api/v1/frameworks/:code  -> Framework | 404
-GET  /api/v1/threats           ?frameworkCode&severity&stride&tag&q&page&size&sort -> Page<ThreatSummary>
-GET  /api/v1/threats/:id       -> ThreatDetail | 404
-GET  /health                   -> {"status":"UP"}
-```
-`Page<T> = {content, totalElements, totalPages, number, size}` (Spring Data's envelope —
-the frontend's `types/index.ts` is written against this shape; don't change it without
-updating the frontend). Error body on 4xx: `{timestamp, status, error, message}`.
-
-If you're adding a field or endpoint, check `../app01_react`'s Java source first — it's
-the contract of record for anything Phase-1 claims to mirror.
+What exists today deliberately mirrors `../app01_react`'s backend, which is
+itself only a Phase-1 skeleton: frameworks + threats (read-only), one
+hardcoded admin login, 4 seeded frameworks, ~33 threats. `frontend/types/index.ts`
+is written against the canonical contract's shape — don't change either side
+without checking the other.
 
 ## Known deliberate deviations from app01 (don't "fix" these back)
 
@@ -53,9 +34,9 @@ the contract of record for anything Phase-1 claims to mirror.
 
 ## Running the stack locally
 
-No Docker on this machine. Use `scripts/local-dev-up.sh` / `scripts/local-dev-down.sh`
-(portable installs under `C:\Users\krish\tools\` + `C:\ghcup\`, not containers — see
-comments in those scripts). Postgres/Redis/GHCup paths are specific to this machine.
+No Docker on this machine (see `../CLAUDE.md`). Use `scripts/local-dev-up.sh` /
+`scripts/local-dev-down.sh` (portable installs under `C:\Users\krish\tools\` +
+`C:\ghcup\`, not containers — see comments in those scripts).
 
 ## Environment-specific gotchas (worth knowing before you fight them again)
 
@@ -71,7 +52,6 @@ haskshield`. `scripts/local-dev-up.sh` already points `DB_NAME` at
 purely a shared-local-Postgres artifact — a real Docker Compose deployment
 gives each app its own container + volume, so `docker-compose.yml` can (and
 does) still say `securevision` without any conflict.
-
 
 This machine's Norton Antivirus does TLS interception (root cert:
 `C:\Users\krish\tools\norton-root.cer` / `.pem`). MSYS2's `pacman`/`curl` (bundled with

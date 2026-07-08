@@ -5,23 +5,20 @@ command/layout reference for working in `frontend/` specifically.
 
 ```
 npm run dev        # Vite dev server on :5173, proxies /api/v1 -> localhost:8080
-npm run build       # tsc -b && vite build -- currently broken, see below
+npm run build       # tsc -b && vite build
 npm run test        # vitest
+npm run lint        # eslint . --ext ts,tsx
 ```
 
-## Known pre-existing issues (not introduced by the Phase-1 parity work, not yet fixed)
-
-- **`npm run build` / `tsc -b` fails** with `TS6310: Referenced project
-  'tsconfig.node.json' may not disable emit.` — a project-references
-  misconfiguration between `tsconfig.json` (`noEmit: true`, `references` to
-  `tsconfig.node.json`) and `tsconfig.node.json` (`composite: true`). Plain
-  `npx tsc --noEmit` (no `-b`) works fine and is what was used to verify
-  changes in this pass. Fix the project-references setup before relying on
-  `npm run build` for a real production bundle.
-- **`npm run lint` / bare `eslint` fails**: `package.json` pins `eslint@^9`,
-  which requires a flat `eslint.config.js` — none exists yet (only the
-  now-unsupported legacy config style is implied by the eslint-plugin-*
-  deps). Add one before relying on lint in CI.
+Both `npm run build` and `npm run lint` are clean (verified). `tsc -b`
+(composite build via `tsconfig.node.json`) emits `vite.config.js` /
+`vite.config.d.ts` alongside `vite.config.ts` — that's expected
+project-references behavior, not a bug; `eslint.config.js` ignores those two
+generated files rather than linting them. `eslint.config.js` (flat config,
+required by the `eslint@^9` pinned in `package.json`) also turns off the base
+`no-undef` rule for `.ts`/`.tsx` files per typescript-eslint's own guidance —
+`React.FormEvent`-style type references (via `@types/react`'s ambient UMD
+global, no value import) otherwise read as false positives.
 
 ## Pages
 

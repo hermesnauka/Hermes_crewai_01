@@ -1,8 +1,10 @@
 # SecurePress 2026 — WordPress/PHP implementation (app09_php_WORDPRESS)
 
-One of twelve parallel course implementations of the same product (SecureVision: browse
-security frameworks + threats, one hardcoded admin login — see `../app01_react` for the
-Phase-1 reference behavior). This is the WordPress one.
+The WordPress implementation. See `../CLAUDE.md` for the sibling list and
+shared local-dev-tooling notes — SecureVision is a threat-modeling reference
+app (browse security frameworks + threats, one hardcoded admin login); see
+`../app01_react` for the Phase-1 reference behavior this app deliberately does
+NOT mirror (see below).
 
 ## Nothing is built yet
 
@@ -68,10 +70,10 @@ way, on purpose**, per `PLAN.md` §0 and §8:
 ## No local dev tooling exists yet either
 
 PLAN.md's Phase 1 calls for Docker Compose (WordPress/PHP-FPM + MySQL + Redis + Nginx)
-and `wp-env`, but none of that is scaffolded in this directory yet. Whoever starts
-Phase 1 needs to decide/build the actual local WP+MySQL setup (Docker Compose file,
-`scripts/`, `nginx/` config) — check what tooling is actually available on the machine
-first, the way `app06_HASKELL_react/CLAUDE.md` documents its own no-Docker workaround.
+and `wp-env`, but none of that is scaffolded in this directory yet. This machine has no
+Docker anyway (see `../CLAUDE.md`) — whoever starts Phase 1 needs to decide/build the
+actual local WP+MySQL setup (Docker Compose file, `scripts/`, `nginx/` config) the way
+`app06_HASKELL_react/CLAUDE.md` documents its own no-Docker workaround.
 
 ## Where to look for more
 
