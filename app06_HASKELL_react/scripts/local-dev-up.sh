@@ -18,9 +18,10 @@ PGBIN="$TOOLS/pgsql/bin"
 PGDATA="C:\\Users\\krish\\tools\\pgdata"
 JAVA_HOME="$TOOLS/jdk-21.0.11+10"
 MAVEN_BIN="$TOOLS/apache-maven-3.9.9/bin"
+GHCUP_BIN="/c/ghcup/bin"
 
 export JAVA_HOME
-export PATH="$JAVA_HOME/bin:$MAVEN_BIN:$PGBIN:$PATH"
+export PATH="$JAVA_HOME/bin:$MAVEN_BIN:$PGBIN:$GHCUP_BIN:$PATH"
 
 echo "== Postgres =="
 if "$PGBIN/pg_isready.exe" -h 127.0.0.1 -p 5432 >/dev/null 2>&1; then
@@ -31,18 +32,29 @@ else
     echo "started"
 fi
 
-echo "== Backend (Spring Boot, :8080) =="
-if curl -sf http://localhost:8080/api/v1/frameworks >/dev/null 2>&1; then
+echo "== Backend (Haskell/servant, :8080) =="
+if curl -sf http://localhost:8080/health >/dev/null 2>&1; then
     echo "already running"
 else
     (
         cd "$ROOT_DIR/backend"
         export DB_HOST=127.0.0.1 DB_PORT=5432 DB_NAME=securevision DB_USER=securevision DB_PASSWORD=securevision
-        nohup mvn spring-boot:run > "$RUN_DIR/backend.log" 2>&1 &
+        # Dev-only defaults, matching ../.env's values. .env itself uses
+        # docker-compose's "$$" escaping for a literal "$" (e.g.
+        # ADMIN_PASSWORD_HASH=$$2b$$10$$...); bash would instead expand "$$"
+        # to the current shell's PID if this file were sourced directly, so
+        # these are hardcoded here (single-quoted, no expansion) same as the
+        # DB_* vars above rather than parsed out of .env.
+        export JWT_SECRET='dev-only-secret-change-me-securevision-2026-min-32-bytes'
+        export JWT_EXPIRATION_MINUTES=60
+        export ADMIN_USERNAME='admin'
+        export ADMIN_PASSWORD_HASH='$2b$10$zQSot7Lxlrb5PdIg3SLzMu92L42rne/Rm29sgipNNYDoBVtQzmiju'
+        nohup cabal run api > "$RUN_DIR/backend.log" 2>&1 &
         echo $! > "$RUN_DIR/backend.pid"
     )
     echo "starting (PID $(cat "$RUN_DIR/backend.pid")), waiting for :8080 ..."
-    if timeout 90 bash -c 'until curl -sf http://localhost:8080/api/v1/frameworks >/dev/null 2>&1; do sleep 2; done'; then
+    echo "(first run compiles every dependency from scratch - can take several minutes)"
+    if timeout 900 bash -c 'until curl -sf http://localhost:8080/health >/dev/null 2>&1; do sleep 2; done'; then
         echo "up"
     else
         echo "TIMED OUT - tail of $RUN_DIR/backend.log:"
