@@ -57,6 +57,13 @@ test/ApiSpec.hs           -- hspec-wai, hits a real Postgres
   one HS256 token." `Auth/Jwt.hs` is ~90 lines of hand-rolled HS256
   (HMAC-SHA256 via `crypton`, base64url via `base64-bytestring`, JSON via
   `aeson`) — deliberately boring and easy to verify by reading it.
+- **`crypton` depends on `ram`, not `memory`, for `ByteArrayAccess`/`convert`.**
+  Both packages export a module literally named `Data.ByteArray` with a
+  same-named `ByteArrayAccess` class, but they're distinct types — `crypton`'s
+  `Digest`/`HMAC` instances are for `ram`'s class. Depending on `memory` and
+  importing `Data.ByteArray (convert)` compiles fine but fails at the call
+  site with a confusing "no instance" error naming both packages by version.
+  `Auth/Jwt.hs` depends on `ram`, not `memory`, for exactly this reason.
 - **hasql/hasql-pool APIs are the current (2026) redesigned ones** —
   `Hasql.Connection.Settings` as a `Monoid` (`hostAndPort <> user <> password
   <> dbname`), `Statement.preparable`/`unpreparable` instead of a `Statement`

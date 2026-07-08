@@ -38,8 +38,8 @@ library
     , hasql
     , hasql-pool
     , http-types
-    , memory
     , password
+    , ram
     , servant-server
     , text
     , time
@@ -52,6 +52,7 @@ library
       DataKinds
       TypeOperators
       LambdaCase
+      DeriveGeneric
 
 executable api
   import:           warnings
@@ -63,6 +64,7 @@ executable api
     , directory
     , filepath
     , hasql
+    , servant-server
     , warp
   default-language: Haskell2010
   default-extensions: OverloadedStrings
@@ -80,6 +82,9 @@ test-suite hasshield-test
     , hasshield
     , aeson
     , bytestring
+    , directory
+    , filepath
+    , hasql
     , hspec
     , hspec-wai
     , http-types
