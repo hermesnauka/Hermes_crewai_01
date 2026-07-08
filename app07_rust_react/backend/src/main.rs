@@ -1,10 +1,4 @@
-mod config;
-mod error;
-
-use axum::{Json, Router, routing::get};
-use config::Config;
-use serde_json::json;
-use sqlx::postgres::PgPoolOptions;
+use securevision_backend::{Config, build_state, routes::build_router, run_migrations};
 
 #[tokio::main]
 async fn main() {
@@ -15,27 +9,16 @@ async fn main() {
         .init();
 
     let config = Config::from_env();
+    let bind_addr = config.bind_addr.clone();
 
-    let pool = PgPoolOptions::new()
-        .max_connections(10)
-        .connect(&config.database_url)
-        .await
-        .expect("failed to connect to database");
+    let state = build_state(config).await;
+    run_migrations(&state).await;
 
-    sqlx::migrate!("./migrations")
-        .run(&pool)
-        .await
-        .expect("failed to run migrations");
+    let app = build_router(state);
 
-    let app = Router::new().route("/health", get(health));
-
-    let listener = tokio::net::TcpListener::bind(&config.bind_addr)
+    let listener = tokio::net::TcpListener::bind(&bind_addr)
         .await
         .expect("failed to bind");
-    tracing::info!("listening on {}", config.bind_addr);
+    tracing::info!("listening on {}", bind_addr);
     axum::serve(listener, app).await.expect("server error");
-}
-
-async fn health() -> Json<serde_json::Value> {
-    Json(json!({ "status": "UP" }))
 }

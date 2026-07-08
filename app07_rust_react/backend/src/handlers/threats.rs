@@ -65,12 +65,12 @@ pub async fn list_threats(
     State(state): State<AppState>,
     Query(params): Query<ThreatQuery>,
 ) -> AppResult<Json<Page<ThreatSummary>>> {
-    if let Some(severity) = &params.severity {
-        if !VALID_SEVERITIES.contains(&severity.to_uppercase().as_str()) {
-            return Err(AppError::BadRequest(format!(
-                "invalid severity: {severity}"
-            )));
-        }
+    if let Some(severity) = &params.severity
+        && !VALID_SEVERITIES.contains(&severity.to_uppercase().as_str())
+    {
+        return Err(AppError::BadRequest(format!(
+            "invalid severity: {severity}"
+        )));
     }
 
     let page = params.page.unwrap_or(0).max(0);
@@ -139,15 +139,14 @@ pub async fn get_threat(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> AppResult<Json<ThreatDetail>> {
-    let row = sqlx::query_as!(
-        ThreatDetailRow,
+    let row = sqlx::query_as::<_, ThreatDetailRow>(
         r#"SELECT t.id, f.code AS framework_code, f.name AS framework_name, t.code, t.title,
                   t.severity, t.category, t.description, t.attack_vector, t.attack_surface,
                   t.stride, t.cve_references, t.tags
            FROM threat t JOIN framework f ON f.id = t.framework_id
            WHERE t.id = $1"#,
-        id
     )
+    .bind(id)
     .fetch_optional(&state.pool)
     .await?
     .ok_or_else(|| AppError::NotFound("Threat", id.to_string()))?;
